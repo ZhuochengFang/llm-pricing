@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ln:*)",
+      "Bash(pip install:*)",
+      "Bash(pip3 show:*)",
+      "Bash(python3 -c \"import fastapi; import uvicorn; print\\(''OK''\\)\")",
+      "Bash(python3 -m pip install fastapi uvicorn)",
+      "Bash(apt list:*)",
+      "Bash(dpkg -l)",
+      "Bash(sudo apt-get:*)",
+      "Bash(grep -E '\\\\.\\(json|yml|yaml|csv|db|sqlite\\)$')",
+      "Bash(find /home/fzc_ubuntu/llm-pricing -type d ! -path */.claude*)",
+      "Bash(node -c /home/fzc_ubuntu/llm-pricing/frontend/script.js)",
+      "Bash(python3:*)"
+    ]
+  }
+}

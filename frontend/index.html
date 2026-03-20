@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Pricing Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header-row">
+            <div>
+                <h1>LLM Pricing Dashboard</h1>
+                <p class="subtitle">Compare pricing across major AI providers (per 1M tokens)</p>
+            </div>
+            <button class="refresh-btn" id="refresh-btn" title="Fetch latest prices">
+                <svg class="refresh-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+                <span class="refresh-label">Refresh Prices</span>
+            </button>
+        </div>
+        <div class="controls">
+            <input type="text" id="search" placeholder="Search model or provider...">
+            <div class="filters" id="filters"></div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="tab-table">Table</button>
+            <button class="tab-btn" data-tab="tab-7day">7-Day Trend</button>
+            <button class="tab-btn" data-tab="tab-history">Price History</button>
+            <button class="tab-btn" data-tab="tab-compare">Compare</button>
+        </div>
+
+        <section id="tab-table" class="tab-panel active">
+            <div class="table-wrap">
+                <table id="pricing-table">
+                    <thead>
+                        <tr>
+                            <th data-sort="provider">Provider</th>
+                            <th data-sort="model">Model</th>
+                            <th data-sort="input_price">Input $/1M</th>
+                            <th data-sort="output_price">Output $/1M</th>
+                            <th data-sort="context_window">Context</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="tab-7day" class="tab-panel">
+            <div class="chart-controls">
+                <div class="model-chips-wrapper">
+                    <div class="chip-actions">
+                        <button class="chip-action-btn" id="select-all-7day">Select All</button>
+                        <button class="chip-action-btn" id="clear-all-7day">Clear All</button>
+                    </div>
+                    <div class="model-chips" id="model-chips-7day"></div>
+                </div>
+                <div class="price-toggle">
+                    <button class="toggle-btn active" data-type-7day="input_price">Input</button>
+                    <button class="toggle-btn" data-type-7day="output_price">Output</button>
+                </div>
+            </div>
+            <div class="seven-day-grid" id="seven-day-grid"></div>
+        </section>
+
+        <section id="tab-history" class="tab-panel">
+            <div class="chart-controls">
+                <div class="model-chips-wrapper">
+                    <div class="chip-actions">
+                        <button class="chip-action-btn" id="select-all-chips">Select All</button>
+                        <button class="chip-action-btn" id="clear-all-chips">Clear All</button>
+                    </div>
+                    <div class="model-chips" id="model-chips"></div>
+                </div>
+                <div class="price-toggle">
+                    <button class="toggle-btn active" data-type="input_price">Input</button>
+                    <button class="toggle-btn" data-type="output_price">Output</button>
+                    <button class="toggle-btn" data-type="both">Both</button>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="history-chart"></canvas>
+            </div>
+            <div class="price-change-summary" id="price-change-summary"></div>
+        </section>
+
+        <section id="tab-compare" class="tab-panel">
+            <div class="compare-sub-tabs">
+                <button class="compare-sub-btn active" data-view="bar">Bar Chart</button>
+                <button class="compare-sub-btn" data-view="scatter">Scatter Plot</button>
+                <button class="compare-sub-btn" data-view="provider">By Provider</button>
+                <button class="compare-sub-btn" data-view="ratio">I/O Ratio</button>
+            </div>
+            <div class="compare-view active" id="compare-bar">
+                <div class="chart-container chart-container-tall">
+                    <canvas id="compare-chart"></canvas>
+                </div>
+            </div>
+            <div class="compare-view" id="compare-scatter">
+                <div class="chart-container chart-container-tall">
+                    <canvas id="scatter-chart"></canvas>
+                </div>
+            </div>
+            <div class="compare-view" id="compare-provider">
+                <div class="chart-container">
+                    <canvas id="provider-chart"></canvas>
+                </div>
+            </div>
+            <div class="compare-view" id="compare-ratio">
+                <div class="chart-container chart-container-tall">
+                    <canvas id="ratio-chart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <p class="updated" id="updated"></p>
+    </div>
+
+    <!-- Modal for row-click 7-day price chart -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modal-title"></h2>
+                <button class="modal-close" id="modal-close">&times;</button>
+            </div>
+            <div class="modal-price-toggle">
+                <button class="toggle-btn active" data-modal-type="input_price">Input</button>
+                <button class="toggle-btn" data-modal-type="output_price">Output</button>
+                <button class="toggle-btn" data-modal-type="both">Both</button>
+            </div>
+            <div class="modal-chart-container">
+                <canvas id="modal-chart"></canvas>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="/static/script.js"></script>
+</body>
+</html>
