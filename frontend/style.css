@@ -107,6 +107,31 @@ tr:hover td { background: #161b22; }
 
 .updated { margin-top: 1rem; font-size: 0.75rem; color: #484f58; }
 
+.refresh-btn {
+    padding: 0.4rem 1rem;
+    border-radius: 6px;
+    border: 1px solid #30363d;
+    background: #21262d;
+    color: #e1e4e8;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.15s;
+}
+.refresh-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+.refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.source-badge {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 0.5rem;
+}
+.source-live { background: #238636; color: #fff; }
+.source-static { background: #6e7681; color: #fff; }
+
 @media (max-width: 600px) {
     h1 { font-size: 1.3rem; }
     th, td { padding: 0.4rem 0.5rem; font-size: 0.8rem; }

@@ -30,11 +30,29 @@ PRICING_DATA = [
     {"provider": "Meta", "model": "llama-3.1-8b", "input_price": 0.05, "output_price": 0.08, "context_window": 128000},
 ]
 
-_updated_at = datetime.now(timezone.utc).isoformat()
+# Mutable state for live pricing
+_live_data: list[dict] = []
+_updated_at: str = datetime.now(timezone.utc).isoformat()
+_source: str = "static"
+
+
+def update_prices(new_data: list[dict]) -> None:
+    global _live_data, _updated_at, _source
+    _live_data = new_data
+    _updated_at = datetime.now(timezone.utc).isoformat()
+    _source = "live"
 
 
 def get_prices(provider: Optional[str] = None) -> list[dict]:
-    data = PRICING_DATA
+    data = _live_data if _live_data else PRICING_DATA
     if provider:
         data = [m for m in data if m["provider"].lower() == provider.lower()]
-    return [{"updated_at": _updated_at, **entry} for entry in data]
+    return [{"updated_at": _updated_at, "source": _source, **entry} for entry in data]
+
+
+def get_status() -> dict:
+    return {
+        "source": _source,
+        "updated_at": _updated_at,
+        "model_count": len(_live_data) if _live_data else len(PRICING_DATA),
+    }

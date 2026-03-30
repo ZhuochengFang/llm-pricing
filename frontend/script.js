@@ -13,6 +13,7 @@
     const search = document.getElementById("search");
     const filtersEl = document.getElementById("filters");
     const updatedEl = document.getElementById("updated");
+    const refreshBtn = document.getElementById("refresh-btn");
 
     // --- Data loading ---
     async function load() {
@@ -20,7 +21,11 @@
         data = await pricesRes.json();
 
         if (data.length) {
-            updatedEl.textContent = "Last updated: " + new Date(data[0].updated_at).toLocaleString();
+            const source = data[0].source || "static";
+            const sourceClass = source === "live" ? "source-live" : "source-static";
+            updatedEl.innerHTML =
+                "Last updated: " + new Date(data[0].updated_at).toLocaleString() +
+                ` <span class="source-badge ${sourceClass}">${source}</span>`;
         }
         const providers = [...new Set(data.map(d => d.provider))];
         filtersEl.innerHTML = providers.map(p =>
@@ -38,6 +43,28 @@
 
         render();
     }
+
+    // --- Refresh handler ---
+    refreshBtn.addEventListener("click", async () => {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = "Refreshing...";
+        try {
+            await fetch("/api/refresh", { method: "POST" });
+            await load();
+            // Download Excel file
+            const resp = await fetch("/api/export");
+            const blob = await resp.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "llm_pricing.xlsx";
+            a.click();
+            URL.revokeObjectURL(url);
+        } finally {
+            refreshBtn.disabled = false;
+            refreshBtn.textContent = "Refresh";
+        }
+    });
 
     // --- Table logic ---
     function filtered() {

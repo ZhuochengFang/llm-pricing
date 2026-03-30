@@ -13,7 +13,17 @@
       "Bash(find /home/fzc_ubuntu/llm-pricing -type d ! -path */.claude*)",
       "Bash(node -c /home/fzc_ubuntu/llm-pricing/frontend/script.js)",
       "Bash(python3:*)",
-      "Bash(grep -E \"\\\\.\\(md|txt|rst\\)$\")"
+      "Bash(grep -E \"\\\\.\\(md|txt|rst\\)$\")",
+      "WebFetch(domain:openrouter.ai)",
+      "WebSearch",
+      "Bash(conda --version)",
+      "Read(//home/fzc_ubuntu/.local/**)",
+      "Bash(curl -sS https://bootstrap.pypa.io/get-pip.py)",
+      "Bash(source /home/fzc_ubuntu/llm-pricing/backend/.venv/bin/activate)",
+      "Bash(.venv/bin/pip install:*)",
+      "Bash(backend/.venv/bin/pip install:*)",
+      "Bash(/home/fzc_ubuntu/llm-pricing/backend/.venv/bin/python -m pip install openpyxl==3.1.5 -q)",
+      "Bash(/home/fzc_ubuntu/llm-pricing/backend/.venv/bin/python -m ensurepip)"
     ]
   }
 }
