@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Price History</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header-row">
+            <div>
+                <a class="page-link" href="/">← Back to dashboard</a>
+                <h1>Price History</h1>
+                <p class="subtitle">7-day history, auto refreshes every 10 minutes</p>
+            </div>
+        </div>
+
+        <h2 id="model-title"></h2>
+        <div class="chart-card">
+            <div class="chart-wrap">
+                <canvas id="history-chart"></canvas>
+            </div>
+            <div class="status-note" id="status"></div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="/static/history.js"></script>
+</body>
+</html>

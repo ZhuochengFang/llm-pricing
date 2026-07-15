@@ -1,4 +1,7 @@
-from datetime import datetime, timezone
+import json
+import os
+import re
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 PRICING_DATA = [
@@ -34,20 +37,88 @@ PRICING_DATA = [
 _live_data: list[dict] = []
 _updated_at: str = datetime.now(timezone.utc).isoformat()
 _source: str = "static"
+_history: dict[tuple[str, str], list[dict]] = {}
+_history_window = timedelta(days=7)
+_history_max_points = 1008
+_slug_re = re.compile(r"[^a-z0-9]+")
 
 
-def update_prices(new_data: list[dict]) -> None:
-    global _live_data, _updated_at, _source
+def _slugify(value: str) -> str:
+    slug = _slug_re.sub("-", value.lower()).strip("-")
+    return slug or "model"
+
+
+def _build_slug_index(data: list[dict]) -> dict[tuple[str, str], str]:
+    counts: dict[str, int] = {}
+    for entry in data:
+        base = _slugify(entry["model"])
+        counts[base] = counts.get(base, 0) + 1
+
+    index: dict[tuple[str, str], str] = {}
+    for entry in data:
+        base = _slugify(entry["model"])
+        if counts[base] == 1:
+            slug = base
+        else:
+            slug = f"{_slugify(entry['provider'])}-{base}"
+        index[(entry["provider"], entry["model"])] = slug
+    return index
+
+
+def _prune_history(points: list[dict], now: datetime) -> list[dict]:
+    cutoff = now - _history_window
+    kept = []
+    for point in points:
+        ts = point.get("_ts")
+        if ts and ts >= cutoff:
+            kept.append(point)
+    if len(kept) > _history_max_points:
+        kept = kept[-_history_max_points:]
+    return kept
+
+
+def update_prices(new_data: list[dict], record_history: bool = False) -> None:
+    global _live_data, _updated_at, _source, _history
     _live_data = new_data
-    _updated_at = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
+    _updated_at = now.isoformat()
     _source = "live"
+    if record_history:
+        for entry in new_data:
+            key = (entry["provider"], entry["model"])
+            series = _history.get(key, [])
+            series.append(
+                {
+                    "_ts": now,
+                    "timestamp": now.isoformat(),
+                    "input_price": entry["input_price"],
+                    "output_price": entry["output_price"],
+                }
+            )
+            _history[key] = _prune_history(series, now)
+        for key, series in list(_history.items()):
+            trimmed = _prune_history(series, now)
+            if trimmed:
+                _history[key] = trimmed
+            else:
+                _history.pop(key, None)
 
 
 def get_prices(provider: Optional[str] = None) -> list[dict]:
-    data = _live_data if _live_data else PRICING_DATA
+    all_data = _live_data if _live_data else PRICING_DATA
+    data = all_data
     if provider:
         data = [m for m in data if m["provider"].lower() == provider.lower()]
-    return [{"updated_at": _updated_at, "source": _source, **entry} for entry in data]
+    slug_index = _build_slug_index(all_data)
+    return [
+        {
+            "updated_at": _updated_at,
+            "source": _source,
+            "slug": slug_index[(entry["provider"], entry["model"])],
+            **entry,
+        }
+        for entry in data
+    ]
 
 
 def get_status() -> dict:
@@ -56,3 +127,112 @@ def get_status() -> dict:
         "updated_at": _updated_at,
         "model_count": len(_live_data) if _live_data else len(PRICING_DATA),
     }
+
+
+def record_current_history() -> None:
+    """用当前数据（live 或 static 兜底）记录一个历史快照，即使没有新的 API 数据。"""
+    global _history
+    data = _live_data if _live_data else PRICING_DATA
+    now = datetime.now(timezone.utc)
+    for entry in data:
+        key = (entry["provider"], entry["model"])
+        series = _history.get(key, [])
+        series.append(
+            {
+                "_ts": now,
+                "timestamp": now.isoformat(),
+                "input_price": entry["input_price"],
+                "output_price": entry["output_price"],
+            }
+        )
+        _history[key] = _prune_history(series, now)
+
+
+def get_history(provider: str, model: str) -> list[dict]:
+    key = (provider, model)
+    series = _history.get(key, [])
+    if series:
+        now = datetime.now(timezone.utc)
+        trimmed = _prune_history(series, now)
+        if trimmed:
+            _history[key] = trimmed
+            series = trimmed
+        else:
+            _history.pop(key, None)
+            series = []
+    return [
+        {
+            "timestamp": point["timestamp"],
+            "input_price": point["input_price"],
+            "output_price": point["output_price"],
+        }
+        for point in series
+    ]
+
+
+def get_history_by_slug(slug: str) -> dict | None:
+    data = _live_data if _live_data else PRICING_DATA
+    slug_index = _build_slug_index(data)
+    slug_map = {value: key for key, value in slug_index.items()}
+    match = slug_map.get(slug)
+    if not match:
+        return None
+    provider, model = match
+    return {
+        "provider": provider,
+        "model": model,
+        "history": get_history(provider, model),
+    }
+
+
+def save_history(data_dir: str) -> None:
+    os.makedirs(data_dir, exist_ok=True)
+    path = os.path.join(data_dir, "price_history.json")
+    serializable = {}
+    for (provider, model), points in _history.items():
+        key = f"{provider}|{model}"
+        serializable[key] = [
+            {
+                "timestamp": p["timestamp"],
+                "input_price": p["input_price"],
+                "output_price": p["output_price"],
+            }
+            for p in points
+        ]
+    tmp_path = path + ".tmp"
+    with open(tmp_path, "w") as f:
+        json.dump(serializable, f)
+    os.replace(tmp_path, path)
+
+
+def load_history(data_dir: str) -> None:
+    global _history
+    path = os.path.join(data_dir, "price_history.json")
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path) as f:
+            raw = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return
+    now = datetime.now(timezone.utc)
+    for key, points in raw.items():
+        parts = key.split("|", 1)
+        if len(parts) != 2:
+            continue
+        provider, model = parts
+        restored = []
+        for p in points:
+            try:
+                ts = datetime.fromisoformat(p["timestamp"])
+                restored.append({
+                    "_ts": ts,
+                    "timestamp": p["timestamp"],
+                    "input_price": p["input_price"],
+                    "output_price": p["output_price"],
+                })
+            except (KeyError, ValueError):
+                continue
+        restored = _prune_history(restored, now)
+        if restored:
+            _history[(provider, model)] = restored

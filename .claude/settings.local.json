@@ -25,7 +25,8 @@
       "Bash(/home/fzc_ubuntu/llm-pricing/backend/.venv/bin/python -m pip install openpyxl==3.1.5 -q)",
       "Bash(/home/fzc_ubuntu/llm-pricing/backend/.venv/bin/python -m ensurepip)",
       "Bash(find:*)",
-      "Bash(python -c \"from csv_exporter import export_daily_csv, cleanup_old_csv; print\\('imports ok'\\)\")"
+      "Bash(python -c \"from csv_exporter import export_daily_csv, cleanup_old_csv; print\\('imports ok'\\)\")",
+      "WebFetch(domain:wanjiedata.com)"
     ]
   }
 }

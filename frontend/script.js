@@ -15,6 +15,13 @@
     const updatedEl = document.getElementById("updated");
     const refreshBtn = document.getElementById("refresh-btn");
 
+    tbody.addEventListener("click", (event) => {
+        const row = event.target.closest("tr[data-slug]");
+        if (!row) return;
+        const slug = row.dataset.slug;
+        window.location.href = `/${slug}`;
+    });
+
     // --- Data loading ---
     async function load() {
         const pricesRes = await fetch("/api/prices");
@@ -92,7 +99,7 @@
         const rows = filtered();
         tbody.innerHTML = rows.map(m => {
             const cls = COLORS[m.provider] || "openai";
-            return `<tr>
+            return `<tr class="row-link" data-slug="${m.slug}">
                 <td><span class="badge badge-${cls}">${m.provider}</span></td>
                 <td>${m.model}</td>
                 <td class="price">${fmt(m.input_price)}</td>
@@ -116,4 +123,5 @@
     search.addEventListener("input", render);
 
     load();
+    setInterval(load, 10 * 60 * 1000);
 })();

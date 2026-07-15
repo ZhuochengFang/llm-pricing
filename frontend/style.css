@@ -87,6 +87,8 @@ th.desc::after { content: " \u25BC"; font-size: 0.7rem; }
 
 tr:hover td { background: #161b22; }
 
+.row-link { cursor: pointer; }
+
 .badge {
     display: inline-block;
     padding: 0.15rem 0.5rem;
@@ -131,6 +133,32 @@ tr:hover td { background: #161b22; }
 }
 .source-live { background: #238636; color: #fff; }
 .source-static { background: #6e7681; color: #fff; }
+
+.page-link {
+    color: #58a6ff;
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.page-link:hover { text-decoration: underline; }
+
+.chart-card {
+    background: #0f1117;
+    border: 1px solid #21262d;
+    border-radius: 12px;
+    padding: 1rem;
+    margin-top: 1rem;
+}
+
+.chart-wrap {
+    height: 360px;
+}
+
+.status-note {
+    margin-top: 0.5rem;
+    color: #8b949e;
+    font-size: 0.85rem;
+}
 
 @media (max-width: 600px) {
     h1 { font-size: 1.3rem; }
