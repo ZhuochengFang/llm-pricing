@@ -40,6 +40,9 @@ ENV PRICE_DB_PATH=/app/data/daily_prices.db
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
+# 8. 设置claude
+RUN mkdir -p /root/.claude
+COPY .claude/settings.json /root/.claude/settings.json
 EXPOSE 8000
 
 ENTRYPOINT ["/app/entrypoint.sh"]

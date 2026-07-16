@@ -1,0 +1,8 @@
+{
+  "env": {
+    "ANTHROPIC_AUTH_TOKEN": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MDEyOTg2ODQyNzgsImlhdCI6MTc2OTc2MjY4NCwia2V5IjoiNUs3NVo4VE5DOUY0SE0zN1A5WTcifQ.NBfIs07jBbFXMYc6oc0t_V73bjBm6yAwQQT54ENZCLc",
+    "ANTHROPIC_BASE_URL": "https://maas-openapi.wanjiedata.com/api/anthropic",
+    "API_TIMEOUT_MS": "3000000",
+    "ANTHROPIC_MODEL":"claude-opus-4-6"
+  }
+}
