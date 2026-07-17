@@ -33,7 +33,7 @@ docker compose up --build
 - `frontend/index.html`、`frontend/script.js`、`frontend/style.css` — 主页面，调用 `/api/prices` 渲染可排序、可筛选的价格表格。刷新按钮触发 `/api/refresh` 后自动下载 Excel 文件。
 - `frontend/history.html`、`frontend/history.js` — 历史价格页面，使用 Chart.js 绘制价格趋势折线图。支持通过 slug 路径或查询参数访问。
 
-**定时任务**：APScheduler 每 10 分钟自动刷新价格（`REFRESH_INTERVAL_MINUTES`）。首次抓取在应用启动时执行。每日 00:05 导出 CSV 快照。
+**定时任务**：APScheduler 每日中国时间 11:00 和 23:00 定时刷新价格。首次抓取在应用启动时执行。每日 00:05 导出 CSV 快照。刷新日志 `refresh.log` 中通过 `[SCHEDULED]`、`[MANUAL]`、`[STARTUP]` 标签区分触发来源。
 
 **部署**：Dockerfile 将 `backend/` 复制到 `/app`，`frontend/` 复制到 `/app/static/`。`docker-compose.yml` 暴露 8000 端口，使用命名卷挂载 `/app/data` 用于数据持久化。
 

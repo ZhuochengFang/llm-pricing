@@ -29,6 +29,7 @@ COPY backend/requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 # 5. 复制应用代码
+COPY CLAUDE.md /app/CLAUDE.md
 COPY backend/ .
 COPY frontend/ /app/static/
 

@@ -3,7 +3,7 @@ import io
 import logging
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, Query
 from fastapi.staticfiles import StaticFiles
@@ -20,24 +20,30 @@ from csv_exporter import export_daily_csv, cleanup_old_csv
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-REFRESH_INTERVAL_MINUTES = 10
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
 scheduler = AsyncIOScheduler()
+CHINA_TZ = timezone(timedelta(hours=8))
+
+# 触发来源标签
+_SOURCE_SCHEDULED = "SCHEDULED"   # 每日定时刷新（11:00 / 23:00 CST）
+_SOURCE_MANUAL = "MANUAL"         # 用户通过网页 Refresh 按钮手动触发
+_SOURCE_STARTUP = "STARTUP"       # 应用启动时首次加载
 
 
-def _write_refresh_log(success: bool, model_count: int = 0, error_msg: str = ""):
+def _write_refresh_log(success: bool, model_count: int = 0, error_msg: str = "",
+                       source: str = _SOURCE_SCHEDULED):
     """Write refresh result to the log file and generate an error file on failure."""
     os.makedirs(DATA_DIR, exist_ok=True)
-    now = datetime.now(timezone.utc)
-    timestamp = now.strftime("%Y-%m-%d %H:%M:%S UTC")
+    now = datetime.now(CHINA_TZ)
+    timestamp = now.strftime("%Y-%m-%d %H:%M:%S CST")
 
     # Always append to the main refresh log
     log_path = os.path.join(DATA_DIR, "refresh.log")
     if success:
-        line = f"[{timestamp}] SUCCESS — refreshed {model_count} models\n"
+        line = f"[{timestamp}] [{source}] SUCCESS — refreshed {model_count} models\n"
     else:
-        line = f"[{timestamp}] FAILED — {error_msg}\n"
+        line = f"[{timestamp}] [{source}] FAILED — {error_msg}\n"
     with open(log_path, "a") as f:
         f.write(line)
 
@@ -67,9 +73,10 @@ async def refresh_prices(record_history: bool = False):
 
 
 async def scheduled_refresh():
-    """Wrapper for scheduled refresh that also writes to the log."""
+    """每日定时刷新（11:00 / 23:00 CST），写入日志并保存历史。"""
     success, count = await refresh_prices(record_history=True)
-    _write_refresh_log(success, count, "No data returned from OpenRouter" if not success else "")
+    _write_refresh_log(success, count, "No data returned from OpenRouter" if not success else "",
+                       source=_SOURCE_SCHEDULED)
     # 无论成功与否都保存历史（失败时 record_current_history 已在 refresh_prices 中调用）
     save_history(DATA_DIR)
 
@@ -85,21 +92,20 @@ async def lifespan(app: FastAPI):
     os.makedirs(DATA_DIR, exist_ok=True)
     load_history(DATA_DIR)
     success, count = await refresh_prices(record_history=True)
-    _write_refresh_log(success, count, "No data returned from OpenRouter" if not success else "")
+    _write_refresh_log(success, count, "No data returned from OpenRouter" if not success else "",
+                       source=_SOURCE_STARTUP)
     save_history(DATA_DIR)
     daily_csv_task()
+    # 每日中国时间 11:00 和 23:00 定时刷新价格
     scheduler.add_job(
         scheduled_refresh,
-        "interval",
-        minutes=REFRESH_INTERVAL_MINUTES,
+        "cron",
+        hour="3,15",          # UTC 03:00 = CST 11:00, UTC 15:00 = CST 23:00
         id="price_refresh",
     )
     scheduler.add_job(daily_csv_task, "cron", hour=0, minute=5, id="daily_csv")
     scheduler.start()
-    logger.info(
-        "Scheduler started (refresh every %d min, daily CSV at 00:05)",
-        REFRESH_INTERVAL_MINUTES,
-    )
+    logger.info("Scheduler started (price refresh at 11:00 & 23:00 CST, daily CSV at 00:05)")
     yield
     # Shutdown
     scheduler.shutdown()
@@ -122,7 +128,8 @@ def status():
 @app.post("/api/refresh")
 async def manual_refresh():
     success, count = await refresh_prices(record_history=True)
-    _write_refresh_log(success, count, "No data returned from OpenRouter" if not success else "")
+    _write_refresh_log(success, count, "No data returned from OpenRouter" if not success else "",
+                       source=_SOURCE_MANUAL)
     if success:
         save_history(DATA_DIR)
     return get_status()
