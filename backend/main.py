@@ -26,7 +26,7 @@ scheduler = AsyncIOScheduler()
 CHINA_TZ = timezone(timedelta(hours=8))
 
 # 触发来源标签
-_SOURCE_SCHEDULED = "SCHEDULED"   # 每日定时刷新（11:00 / 23:00 CST）
+_SOURCE_SCHEDULED = "SCHEDULED"   # 每小时定时刷新（CST 09:00–22:00）
 _SOURCE_MANUAL = "MANUAL"         # 用户通过网页 Refresh 按钮手动触发
 _SOURCE_STARTUP = "STARTUP"       # 应用启动时首次加载
 
@@ -60,30 +60,50 @@ async def refresh_prices(record_history: bool = False):
     logger.info("Refreshing prices from OpenRouter...")
     models = await fetch_prices()
     if models:
-        update_prices(models, record_history=record_history)
+        try:
+            update_prices(models, record_history=record_history)
+        except Exception as e:
+            logger.exception("update_prices failed: %s", e)
+            raise RuntimeError(f"update_prices failed: {e}") from e
         logger.info("Prices updated: %d models", len(models))
         return True, len(models)
     else:
         logger.warning("Refresh returned no data; keeping previous prices")
         # 即使 OpenRouter 获取失败，也用当前数据（上次的 live 或静态兜底）记录历史
         if record_history:
-            record_current_history()
+            try:
+                record_current_history()
+            except Exception as e:
+                logger.exception("record_current_history failed: %s", e)
+                raise RuntimeError(f"record_current_history failed: {e}") from e
             logger.info("Recorded history from current data (fallback)")
         return False, 0
 
 
 async def scheduled_refresh():
-    """每日定时刷新（11:00 / 23:00 CST），写入日志并保存历史。"""
-    success, count = await refresh_prices(record_history=True)
-    _write_refresh_log(success, count, "No data returned from OpenRouter" if not success else "",
-                       source=_SOURCE_SCHEDULED)
-    # 无论成功与否都保存历史（失败时 record_current_history 已在 refresh_prices 中调用）
-    save_history(DATA_DIR)
+    """每小时定时刷新（CST 09:00–22:00），写入日志并保存历史。"""
+    try:
+        success, count = await refresh_prices(record_history=True)
+        _write_refresh_log(success, count,
+                           "No data returned from OpenRouter" if not success else "",
+                           source=_SOURCE_SCHEDULED)
+        # 无论成功与否都保存历史（失败时 record_current_history 已在 refresh_prices 中调用）
+        save_history(DATA_DIR)
+    except Exception as e:
+        logger.exception("Scheduled refresh crashed: %s", e)
+        try:
+            _write_refresh_log(False, 0, f"Exception: {e}", source=_SOURCE_SCHEDULED)
+        except Exception:
+            logger.exception("Failed to write refresh log after crash")
 
 
 def daily_csv_task():
     export_daily_csv(DATA_DIR)
     cleanup_old_csv(DATA_DIR)
+
+def arithmetic_sequence(start, end, step=1):
+    """生成等差数列字符串"""
+    return ','.join(str(i) for i in range(start, end + 1, step))
 
 
 @asynccontextmanager
@@ -96,16 +116,16 @@ async def lifespan(app: FastAPI):
                        source=_SOURCE_STARTUP)
     save_history(DATA_DIR)
     daily_csv_task()
-    # 每日中国时间 11:00 和 23:00 定时刷新价格
+    # 每日中国时间 09:00–22:00 每小时整点刷新价格（UTC 01:00–14:00，共 14 次）
     scheduler.add_job(
         scheduled_refresh,
         "cron",
-        hour="3,15",          # UTC 03:00 = CST 11:00, UTC 15:00 = CST 23:00
+        hour=arithmetic_sequence(1, 14),
         id="price_refresh",
     )
     scheduler.add_job(daily_csv_task, "cron", hour=0, minute=5, id="daily_csv")
     scheduler.start()
-    logger.info("Scheduler started (price refresh at 11:00 & 23:00 CST, daily CSV at 00:05)")
+    logger.info("Scheduler started (price refresh hourly 09:00–22:00 CST, daily CSV at 00:05)")
     yield
     # Shutdown
     scheduler.shutdown()
@@ -123,6 +143,8 @@ def prices(provider: Optional[str] = Query(None)):
 @app.get("/api/status")
 def status():
     return get_status()
+
+
 
 
 @app.post("/api/refresh")
