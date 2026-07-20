@@ -122,8 +122,10 @@ async def lifespan(app: FastAPI):
         "cron",
         hour=arithmetic_sequence(1, 14),
         id="price_refresh",
+        misfire_grace_time=300,  # 允许最多 5 分钟延迟仍执行，避免因事件循环抖动而跳过
     )
-    scheduler.add_job(daily_csv_task, "cron", hour=0, minute=5, id="daily_csv")
+    scheduler.add_job(daily_csv_task, "cron", hour=0, minute=5, id="daily_csv",
+                      misfire_grace_time=300)
     scheduler.start()
     logger.info("Scheduler started (price refresh hourly 09:00–22:00 CST, daily CSV at 00:05)")
     yield
