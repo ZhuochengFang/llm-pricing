@@ -15,6 +15,7 @@ PROVIDER_MAP = {
     "mistral": "Mistral",
     "meta-llama": "Meta",
     "meta": "Meta",
+    "qwen": "Qwen",
 }
 
 

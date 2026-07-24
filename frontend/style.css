@@ -104,6 +104,7 @@ tr:hover td { background: #161b22; }
 .badge-google { background: #4285f4; }
 .badge-mistral { background: #f97316; }
 .badge-meta { background: #0668e1; }
+.badge-qwen { background: #615ced; }
 
 .price { font-variant-numeric: tabular-nums; }
 

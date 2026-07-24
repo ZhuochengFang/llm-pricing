@@ -1,7 +1,7 @@
 (function () {
     const COLORS = {
         OpenAI: "openai", Anthropic: "anthropic", DeepSeek: "deepseek",
-        Google: "google", Mistral: "mistral", Meta: "meta"
+        Google: "google", Mistral: "mistral", Meta: "meta", Qwen: "qwen"
     };
 
     let data = [];
