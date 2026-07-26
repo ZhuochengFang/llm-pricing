@@ -8,7 +8,7 @@ from pricing_data import get_prices
 
 logger = logging.getLogger(__name__)
 
-CSV_HEADERS = ["Provider", "Model", "Input $/1M tokens", "Output $/1M tokens", "Context Window"]
+CSV_HEADERS = ["Platform", "Provider", "Model", "Input $/1M tokens", "Output $/1M tokens", "Context Window"]
 
 
 def export_daily_csv(data_dir: str) -> str | None:
@@ -25,7 +25,8 @@ def export_daily_csv(data_dir: str) -> str | None:
         writer = csv.writer(f)
         writer.writerow(CSV_HEADERS)
         for r in rows:
-            writer.writerow([r["provider"], r["model"], r["input_price"], r["output_price"], r["context_window"]])
+            ctx = r["context_window"] if r.get("context_window") else ""
+            writer.writerow([r.get("platform", ""), r["provider"], r["model"], r["input_price"], r["output_price"], ctx])
 
     logger.info("Exported %d models to %s", len(rows), filepath)
     return str(filepath)

@@ -8,7 +8,7 @@ body {
 }
 
 .container {
-    max-width: 960px;
+    max-width: 1060px;
     margin: 0 auto;
     padding: 2rem 1rem;
 }
@@ -82,8 +82,8 @@ th {
     background: #0f1117;
 }
 th:hover { color: #58a6ff; }
-th.asc::after { content: " \u25B2"; font-size: 0.7rem; }
-th.desc::after { content: " \u25BC"; font-size: 0.7rem; }
+th.asc::after { content: " ▲"; font-size: 0.7rem; }
+th.desc::after { content: " ▼"; font-size: 0.7rem; }
 
 tr:hover td { background: #161b22; }
 
@@ -105,6 +105,9 @@ tr:hover td { background: #161b22; }
 .badge-mistral { background: #f97316; }
 .badge-meta { background: #0668e1; }
 .badge-qwen { background: #615ced; }
+
+.badge-openrouter { background: #6e40c9; }
+.badge-yunwu { background: #0ea5e9; }
 
 .price { font-variant-numeric: tabular-nums; }
 
@@ -159,6 +162,12 @@ tr:hover td { background: #161b22; }
     margin-top: 0.5rem;
     color: #8b949e;
     font-size: 0.85rem;
+}
+
+.legend-note {
+    margin-top: 0.5rem;
+    color: #6e7681;
+    font-size: 0.75rem;
 }
 
 @media (max-width: 600px) {

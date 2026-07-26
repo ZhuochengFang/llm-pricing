@@ -11,12 +11,13 @@
         <div class="header-row">
             <div>
                 <h1>LLM Pricing Dashboard</h1>
-                <p class="subtitle">Compare pricing across major AI providers (per 1M tokens)</p>
+                <p class="subtitle">Compare pricing across platforms and providers (per 1M tokens)</p>
             </div>
-            <button class="refresh-btn" id="refresh-btn" title="Refresh prices from OpenRouter">Refresh</button>
+            <button class="refresh-btn" id="refresh-btn" title="Refresh prices from all platforms">Refresh</button>
         </div>
         <div class="controls">
             <input type="text" id="search" placeholder="Search model or provider...">
+            <div class="filters" id="platform-filters"></div>
             <div class="filters" id="filters"></div>
         </div>
 
@@ -24,6 +25,7 @@
             <table id="pricing-table">
                 <thead>
                     <tr>
+                        <th data-sort="platform">Platform</th>
                         <th data-sort="provider">Provider</th>
                         <th data-sort="model">Model</th>
                         <th data-sort="input_price">Input $/1M</th>

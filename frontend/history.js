@@ -1,4 +1,5 @@
 (function () {
+    const PLATFORM_LABELS = { openrouter: "OpenRouter", yunwu: "Yunwu" };
     const titleEl = document.getElementById("model-title");
     const statusEl = document.getElementById("status");
     const canvas = document.getElementById("history-chart");
@@ -13,8 +14,15 @@
     let provider = providerParam ? decodeURIComponent(providerParam) : null;
     let model = modelParam ? decodeURIComponent(modelParam) : null;
 
+    function roundToMinute(ts) {
+        var d = new Date(ts);
+        d.setSeconds(0, 0);
+        return d.getTime();
+    }
+
     async function loadHistory() {
-        let points = [];
+        let historyByPlatform = {};
+
         if (slug) {
             const resp = await fetch(`/api/history/${encodeURIComponent(slug)}`);
             if (!resp.ok) {
@@ -24,29 +32,80 @@
             const payload = await resp.json();
             provider = payload.provider;
             model = payload.model;
-            points = payload.history || [];
+            historyByPlatform = payload.history || {};
             titleEl.textContent = `${provider} / ${model}`;
         } else if (provider && model) {
             titleEl.textContent = `${provider} / ${model}`;
             const resp = await fetch(
                 `/api/history?provider=${encodeURIComponent(provider)}&model=${encodeURIComponent(model)}`
             );
-            points = await resp.json();
+            historyByPlatform = await resp.json();
         } else {
             statusEl.textContent = "Missing model information.";
             return;
         }
 
-        if (!points.length) {
+        const platforms = Object.keys(historyByPlatform).filter(
+            p => historyByPlatform[p] && historyByPlatform[p].length
+        );
+        if (!platforms.length) {
             statusEl.textContent = "No auto-refresh history yet. Check back after the next refresh.";
             return;
         }
 
-        const labels = points.map(p => new Date(p.timestamp).toLocaleString(undefined, {
+        const multiPlatform = platforms.length > 1;
+
+        // Merge all timestamps, round to minute for alignment across platforms
+        const timelineSet = new Set();
+        for (const plat of platforms) {
+            for (const p of historyByPlatform[plat]) {
+                timelineSet.add(roundToMinute(p.timestamp));
+            }
+        }
+        const timeline = [...timelineSet].sort((a, b) => a - b);
+
+        const labels = timeline.map(t => new Date(t).toLocaleString(undefined, {
             month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"
         }));
-        const inputSeries = points.map(p => p.input_price);
-        const outputSeries = points.map(p => p.output_price);
+
+        const COLORS = {
+            openrouter: { input: "#58a6ff", output: "#f97316" },
+            yunwu:      { input: "#34d399", output: "#f472b6" },
+        };
+        const datasets = [];
+
+        for (const plat of platforms) {
+            const points = historyByPlatform[plat];
+            const byMinute = {};
+            for (const p of points) byMinute[roundToMinute(p.timestamp)] = p;
+
+            const inputData = timeline.map(t => byMinute[t] ? byMinute[t].input_price : null);
+            const outputData = timeline.map(t => byMinute[t] ? byMinute[t].output_price : null);
+
+            const colors = COLORS[plat] || COLORS.openrouter;
+            const prefix = multiPlatform ? (PLATFORM_LABELS[plat] || plat) + " " : "";
+
+            datasets.push({
+                label: prefix + "Input $/1M",
+                data: inputData,
+                borderColor: colors.input,
+                backgroundColor: colors.input + "33",
+                tension: 0.2,
+                pointRadius: 3,
+                spanGaps: true,
+                borderDash: multiPlatform && plat !== platforms[0] ? [6, 3] : [],
+            });
+            datasets.push({
+                label: prefix + "Output $/1M",
+                data: outputData,
+                borderColor: colors.output,
+                backgroundColor: colors.output + "33",
+                tension: 0.2,
+                pointRadius: 3,
+                spanGaps: true,
+                borderDash: multiPlatform && plat !== platforms[0] ? [6, 3] : [],
+            });
+        }
 
         Chart.defaults.color = "#e1e4e8";
         Chart.defaults.borderColor = "#30363d";
@@ -54,27 +113,7 @@
         if (chartInstance) chartInstance.destroy();
         chartInstance = new Chart(canvas, {
             type: "line",
-            data: {
-                labels,
-                datasets: [
-                    {
-                        label: "Input $/1M",
-                        data: inputSeries,
-                        borderColor: "#58a6ff",
-                        backgroundColor: "rgba(88, 166, 255, 0.2)",
-                        tension: 0.2,
-                        pointRadius: 3
-                    },
-                    {
-                        label: "Output $/1M",
-                        data: outputSeries,
-                        borderColor: "#f97316",
-                        backgroundColor: "rgba(249, 115, 22, 0.2)",
-                        tension: 0.2,
-                        pointRadius: 3
-                    }
-                ]
-            },
+            data: { labels, datasets },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -88,8 +127,8 @@
             }
         });
 
-        const latest = points[points.length - 1];
-        statusEl.textContent = `Latest update: ${new Date(latest.timestamp).toLocaleString()}`;
+        const latestTs = Math.max(...timeline);
+        statusEl.textContent = `Latest update: ${new Date(latestTs).toLocaleString()}`;
     }
 
     loadHistory().catch(() => {
