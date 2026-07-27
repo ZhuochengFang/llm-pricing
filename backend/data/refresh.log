@@ -12,3 +12,7 @@
 [2026-07-26 22:15:26 CST] [STARTUP:yunwu] SUCCESS — refreshed 203 models
 [2026-07-26 22:31:38 CST] [STARTUP] SUCCESS — refreshed 196 models
 [2026-07-26 22:31:38 CST] [STARTUP:yunwu] SUCCESS — refreshed 203 models
+[2026-07-27 11:00:00 CST] [SCHEDULED] FAILED — No data returned from OpenRouter
+[2026-07-27 11:00:00 CST] [SCHEDULED:yunwu] FAILED — No data returned from Yunwu
+[2026-07-27 12:00:00 CST] [SCHEDULED] FAILED — No data returned from OpenRouter
+[2026-07-27 12:00:00 CST] [SCHEDULED:yunwu] FAILED — No data returned from Yunwu
