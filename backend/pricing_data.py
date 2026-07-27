@@ -6,6 +6,48 @@ from typing import Optional
 
 from model_matcher import build_alias_map, _canonical
 
+_PROVIDER_ORDER = {
+    "OpenAI": 0, "Anthropic": 1, "Google": 2, "DeepSeek": 3,
+    "Mistral": 4, "Meta": 5, "Qwen": 6,
+}
+
+_PLATFORM_ORDER = {"openrouter": 0, "yunwu": 1}
+
+_version_split_re = re.compile(r"^(.*?[-.]?)(\d+(?:\.\d+)*)([-.].*)?$")
+
+
+def _extract_version(name: str) -> tuple[str, str, tuple]:
+    m = _version_split_re.match(name)
+    if m:
+        prefix = m.group(1).rstrip("-.")
+        version = tuple(float(x) for x in m.group(2).split("."))
+        suffix = (m.group(3) or "").lstrip("-.")
+    else:
+        prefix = name
+        version = (0,)
+        suffix = ""
+    return prefix, suffix, version
+
+
+def _sort_key(entry: dict) -> tuple:
+    provider = entry["provider"]
+    platform = entry.get("platform", "openrouter")
+    model = entry["model"]
+    alias = _alias_map.get((provider, model))
+    if alias and "openrouter" in alias:
+        canon = _canonical(provider, alias["openrouter"])
+    else:
+        canon = _canonical(provider, model)
+    prefix, suffix, version = _extract_version(canon)
+    return (
+        _PROVIDER_ORDER.get(provider, 99),
+        prefix,
+        suffix,
+        version,
+        _PLATFORM_ORDER.get(platform, 99),
+    )
+
+
 PRICING_DATA = [
     # OpenAI
     {"provider": "OpenAI", "model": "gpt-4o", "input_price": 2.50, "output_price": 10.00, "context_window": 128000},
@@ -167,6 +209,8 @@ def get_prices(provider: Optional[str] = None, platform: Optional[str] = None) -
         all_data = [m for m in all_data if m["provider"].lower() == provider.lower()]
     if platform:
         all_data = [m for m in all_data if m["platform"].lower() == platform.lower()]
+
+    all_data.sort(key=_sort_key)
 
     slug_index = _build_slug_index(all_data)
 

@@ -16,3 +16,13 @@
 [2026-07-27 11:00:00 CST] [SCHEDULED:yunwu] FAILED — No data returned from Yunwu
 [2026-07-27 12:00:00 CST] [SCHEDULED] FAILED — No data returned from OpenRouter
 [2026-07-27 12:00:00 CST] [SCHEDULED:yunwu] FAILED — No data returned from Yunwu
+[2026-07-27 20:19:00 CST] [STARTUP] SUCCESS — refreshed 195 models
+[2026-07-27 20:19:00 CST] [STARTUP:yunwu] SUCCESS — refreshed 202 models
+[2026-07-27 20:19:20 CST] [STARTUP] SUCCESS — refreshed 195 models
+[2026-07-27 20:19:20 CST] [STARTUP:yunwu] SUCCESS — refreshed 202 models
+[2026-07-27 20:28:04 CST] [STARTUP] SUCCESS — refreshed 195 models
+[2026-07-27 20:28:04 CST] [STARTUP:yunwu] SUCCESS — refreshed 202 models
+[2026-07-27 20:28:47 CST] [STARTUP] SUCCESS — refreshed 195 models
+[2026-07-27 20:28:47 CST] [STARTUP:yunwu] SUCCESS — refreshed 202 models
+[2026-07-27 20:29:44 CST] [STARTUP] SUCCESS — refreshed 195 models
+[2026-07-27 20:29:44 CST] [STARTUP:yunwu] SUCCESS — refreshed 202 models
