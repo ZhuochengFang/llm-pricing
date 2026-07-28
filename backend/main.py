@@ -15,12 +15,13 @@ from openpyxl import Workbook
 
 from pricing_data import (
     get_history, get_history_by_slug, get_prices, get_status,
-    update_prices, update_yunwu_prices, record_current_history,
-    save_history, load_history,
+    update_prices, update_yunwu_prices, PRICING_DATA,
 )
+import pricing_data
 from price_fetcher import fetch_prices
 from yunwu_fetcher import fetch_yunwu_prices
 from csv_exporter import export_daily_csv, cleanup_old_csv
+from database import init_pool, close_pool, insert_history_batch, cleanup_old_history
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -62,39 +63,39 @@ def _write_refresh_log(success: bool, model_count: int = 0, error_msg: str = "",
             f.write(f"Error: {error_msg}\n")
 
 
-async def refresh_prices(record_history: bool = False):
+async def refresh_prices():
     logger.info("Refreshing prices from OpenRouter...")
     models = await fetch_prices()
     if models:
         try:
-            update_prices(models, record_history=record_history)
+            update_prices(models)
         except Exception as e:
             logger.exception("update_prices failed: %s", e)
             raise RuntimeError(f"update_prices failed: {e}") from e
+        now = datetime.now(timezone.utc)
+        await insert_history_batch("openrouter", models, now)
         logger.info("Prices updated: %d models", len(models))
         return True, len(models)
     else:
         logger.warning("Refresh returned no data; keeping previous prices")
-        # 即使 OpenRouter 获取失败，也用当前数据（上次的 live 或静态兜底）记录历史
-        if record_history:
-            try:
-                record_current_history()
-            except Exception as e:
-                logger.exception("record_current_history failed: %s", e)
-                raise RuntimeError(f"record_current_history failed: {e}") from e
-            logger.info("Recorded history from current data (fallback)")
+        now = datetime.now(timezone.utc)
+        fallback = pricing_data._live_data if pricing_data._live_data else PRICING_DATA
+        await insert_history_batch("openrouter", fallback, now)
+        logger.info("Recorded history from current data (fallback)")
         return False, 0
 
 
-async def refresh_yunwu_prices(record_history: bool = False):
+async def refresh_yunwu_prices():
     logger.info("Refreshing prices from Yunwu...")
     models = await fetch_yunwu_prices()
     if models:
         try:
-            update_yunwu_prices(models, record_history=record_history)
+            update_yunwu_prices(models)
         except Exception as e:
             logger.exception("update_yunwu_prices failed: %s", e)
             raise RuntimeError(f"update_yunwu_prices failed: {e}") from e
+        now = datetime.now(timezone.utc)
+        await insert_history_batch("yunwu", models, now)
         logger.info("Yunwu prices updated: %d models", len(models))
         return True, len(models)
     else:
@@ -102,11 +103,11 @@ async def refresh_yunwu_prices(record_history: bool = False):
         return False, 0
 
 
-async def refresh_all(record_history: bool = False, source: str = _SOURCE_SCHEDULED):
+async def refresh_all(source: str = _SOURCE_SCHEDULED):
     """Refresh prices from all platforms concurrently."""
     results = await asyncio.gather(
-        refresh_prices(record_history=record_history),
-        refresh_yunwu_prices(record_history=record_history),
+        refresh_prices(),
+        refresh_yunwu_prices(),
         return_exceptions=True,
     )
 
@@ -129,13 +130,11 @@ async def refresh_all(record_history: bool = False, source: str = _SOURCE_SCHEDU
                            "No data returned from Yunwu" if not yw_ok else "",
                            source=source, platform="yunwu")
 
-    save_history(DATA_DIR)
-
 
 async def scheduled_refresh():
-    """定时刷新，写入日志并保存历史。"""
+    """定时刷新，写入日志。"""
     try:
-        await refresh_all(record_history=True, source=_SOURCE_SCHEDULED)
+        await refresh_all(source=_SOURCE_SCHEDULED)
     except Exception as e:
         logger.exception("Scheduled refresh crashed: %s", e)
         try:
@@ -155,10 +154,13 @@ def arithmetic_sequence(start, end, step=1):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 启动：加载持久化历史、获取初始价格、启动定时任务
     os.makedirs(DATA_DIR, exist_ok=True)
-    load_history(DATA_DIR)
-    await refresh_all(record_history=True, source=_SOURCE_STARTUP)
+
+    db_ok = await init_pool()
+    if not db_ok:
+        logger.warning("Starting without database — history unavailable")
+
+    await refresh_all(source=_SOURCE_STARTUP)
     daily_csv_task()
     # 每日中国时间 09:00–22:00 每小时整点刷新价格（UTC 01:00–14:00）
     scheduler.add_job(
@@ -166,15 +168,17 @@ async def lifespan(app: FastAPI):
         "cron",
         hour=arithmetic_sequence(1, 14),
         id="price_refresh",
-        misfire_grace_time=300,  # 允许最多 5 分钟延迟仍执行，避免因事件循环抖动而跳过
+        misfire_grace_time=300,
     )
     scheduler.add_job(daily_csv_task, "cron", hour=0, minute=5, id="daily_csv",
                       misfire_grace_time=300)
+    scheduler.add_job(cleanup_old_history, "cron", hour=3, minute=0,
+                      id="history_cleanup", misfire_grace_time=300)
     scheduler.start()
-    logger.info("Scheduler started (price refresh hourly 09:00–22:00 CST, daily CSV at 00:05)")
+    logger.info("Scheduler started (price refresh hourly 09:00–22:00 CST, daily CSV at 00:05, history cleanup at 03:00 UTC)")
     yield
-    # 关闭调度器
     scheduler.shutdown()
+    await close_pool()
 
 
 app = FastAPI(title="LLM Pricing Dashboard", lifespan=lifespan)
@@ -193,7 +197,7 @@ def status():
 
 @app.post("/api/refresh")
 async def manual_refresh():
-    await refresh_all(record_history=True, source=_SOURCE_MANUAL)
+    await refresh_all(source=_SOURCE_MANUAL)
     return get_status()
 
 
@@ -221,14 +225,14 @@ def export_excel(provider: Optional[str] = Query(None), platform: Optional[str] 
 
 
 @app.get("/api/history")
-def history(provider: str = Query(...), model: str = Query(...),
+async def history(provider: str = Query(...), model: str = Query(...),
             platform: Optional[str] = Query(None)):
-    return get_history(provider, model, platform)
+    return await get_history(provider, model, platform)
 
 
 @app.get("/api/history/{slug}")
-def history_by_slug(slug: str):
-    result = get_history_by_slug(slug)
+async def history_by_slug(slug: str):
+    result = await get_history_by_slug(slug)
     if not result:
         return JSONResponse(status_code=404, content={"detail": "Unknown model slug"})
     return result

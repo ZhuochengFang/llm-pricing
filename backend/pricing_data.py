@@ -1,7 +1,5 @@
-import json
-import os
 import re
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Optional
 
 from model_matcher import build_alias_map, _canonical
@@ -95,10 +93,6 @@ _source: str = "static"
 _yunwu_source: str = "none"
 _alias_map: dict[tuple[str, str], dict[str, str]] = {}
 
-# History keyed by (platform, provider, model)
-_history: dict[tuple[str, str, str], list[dict]] = {}
-_history_window = timedelta(days=7)
-_history_max_points = 1008
 _slug_re = re.compile(r"[^a-z0-9]+")
 
 
@@ -130,72 +124,27 @@ def _build_slug_index(data: list[dict]) -> dict[tuple[str, str], str]:
     return index
 
 
-def _prune_history(points: list[dict], now: datetime) -> list[dict]:
-    cutoff = now - _history_window
-    kept = []
-    for point in points:
-        ts = point.get("_ts")
-        if ts and ts >= cutoff:
-            kept.append(point)
-    if len(kept) > _history_max_points:
-        kept = kept[-_history_max_points:]
-    return kept
-
-
-def _record_history_for(data: list[dict], platform: str, now: datetime) -> None:
-    global _history
-    for entry in data:
-        key = (platform, entry["provider"], entry["model"])
-        series = _history.get(key, [])
-        series.append(
-            {
-                "_ts": now,
-                "timestamp": now.isoformat(),
-                "input_price": entry["input_price"],
-                "output_price": entry["output_price"],
-            }
-        )
-        _history[key] = _prune_history(series, now)
-
-
 def _rebuild_alias_map() -> None:
     global _alias_map
     or_data = _live_data if _live_data else PRICING_DATA
     _alias_map = build_alias_map(or_data, _yunwu_data)
 
 
-def update_prices(new_data: list[dict], record_history: bool = False) -> None:
-    global _live_data, _updated_at, _source, _history
+def update_prices(new_data: list[dict]) -> None:
+    global _live_data, _updated_at, _source
     _live_data = new_data
     now = datetime.now(timezone.utc)
     _updated_at = now.isoformat()
     _source = "live"
-    if record_history:
-        _record_history_for(new_data, "openrouter", now)
-        for key, series in list(_history.items()):
-            trimmed = _prune_history(series, now)
-            if trimmed:
-                _history[key] = trimmed
-            else:
-                _history.pop(key, None)
     _rebuild_alias_map()
 
 
-def update_yunwu_prices(new_data: list[dict], record_history: bool = False) -> None:
-    global _yunwu_data, _yunwu_updated_at, _yunwu_source, _history
+def update_yunwu_prices(new_data: list[dict]) -> None:
+    global _yunwu_data, _yunwu_updated_at, _yunwu_source
     _yunwu_data = new_data
     now = datetime.now(timezone.utc)
     _yunwu_updated_at = now.isoformat()
     _yunwu_source = "live"
-    if record_history:
-        _record_history_for(new_data, "yunwu", now)
-        for key, series in list(_history.items()):
-            if key[0] == "yunwu":
-                trimmed = _prune_history(series, now)
-                if trimmed:
-                    _history[key] = trimmed
-                else:
-                    _history.pop(key, None)
     _rebuild_alias_map()
 
 
@@ -241,58 +190,40 @@ def get_status() -> dict:
     }
 
 
-def record_current_history() -> None:
-    global _history
-    data = _live_data if _live_data else PRICING_DATA
-    now = datetime.now(timezone.utc)
-    _record_history_for(data, "openrouter", now)
-    if _yunwu_data:
-        _record_history_for(_yunwu_data, "yunwu", now)
+async def get_history(provider: str, model: str, platform: Optional[str] = None) -> dict:
+    from database import query_history, is_available
 
+    if not is_available():
+        return {}
 
-def get_history(provider: str, model: str, platform: Optional[str] = None) -> dict:
-    """Return history grouped by platform for a given (provider, model).
-
-    Uses canonical name matching to find history recorded under any alias
-    of the model, not just the current name.
-    """
-    now = datetime.now(timezone.utc)
-    result: dict[str, list[dict]] = {}
-    platforms = [platform] if platform else list(PLATFORMS)
     target_canon = _canonical(provider, model)
+    all_models = {model}
+    for entry in (_live_data if _live_data else PRICING_DATA) + _yunwu_data:
+        if entry["provider"] == provider and _canonical(provider, entry["model"]) == target_canon:
+            all_models.add(entry["model"])
 
-    for plat in platforms:
-        merged: list[dict] = []
-        for (h_plat, h_prov, h_model), series in _history.items():
-            if h_plat == plat and h_prov == provider and _canonical(h_prov, h_model) == target_canon:
-                merged.extend(series)
+    merged: dict[str, list[dict]] = {}
+    for m in all_models:
+        partial = await query_history(provider, m, platform)
+        for plat, points in partial.items():
+            merged.setdefault(plat, []).extend(points)
 
-        if not merged:
-            continue
-
-        merged.sort(key=lambda p: p.get("_ts") or datetime.min.replace(tzinfo=timezone.utc))
-        seen_ts: set[str] = set()
-        unique: list[dict] = []
-        for p in merged:
-            ts = p["timestamp"]
-            if ts not in seen_ts:
-                seen_ts.add(ts)
+    result: dict[str, list[dict]] = {}
+    for plat, points in merged.items():
+        seen: set[str] = set()
+        unique = []
+        points.sort(key=lambda p: p["timestamp"])
+        for p in points:
+            if p["timestamp"] not in seen:
+                seen.add(p["timestamp"])
                 unique.append(p)
+        if unique:
+            result[plat] = unique
 
-        trimmed = _prune_history(unique, now)
-        if trimmed:
-            result[plat] = [
-                {
-                    "timestamp": p["timestamp"],
-                    "input_price": p["input_price"],
-                    "output_price": p["output_price"],
-                }
-                for p in trimmed
-            ]
     return result
 
 
-def get_history_by_slug(slug: str) -> dict | None:
+async def get_history_by_slug(slug: str) -> dict | None:
     all_data = (_live_data if _live_data else PRICING_DATA) + _yunwu_data
     slug_index = _build_slug_index(all_data)
     slug_map = {value: key for key, value in slug_index.items()}
@@ -303,63 +234,5 @@ def get_history_by_slug(slug: str) -> dict | None:
     return {
         "provider": provider,
         "model": model,
-        "history": get_history(provider, model),
+        "history": await get_history(provider, model),
     }
-
-
-def save_history(data_dir: str) -> None:
-    os.makedirs(data_dir, exist_ok=True)
-    path = os.path.join(data_dir, "price_history.json")
-    serializable = {}
-    for (platform, provider, model), points in _history.items():
-        key = f"{platform}|{provider}|{model}"
-        serializable[key] = [
-            {
-                "timestamp": p["timestamp"],
-                "input_price": p["input_price"],
-                "output_price": p["output_price"],
-            }
-            for p in points
-        ]
-    tmp_path = path + ".tmp"
-    with open(tmp_path, "w") as f:
-        json.dump(serializable, f)
-    os.replace(tmp_path, path)
-
-
-def load_history(data_dir: str) -> None:
-    global _history
-    path = os.path.join(data_dir, "price_history.json")
-    if not os.path.exists(path):
-        return
-    try:
-        with open(path) as f:
-            raw = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return
-    now = datetime.now(timezone.utc)
-    for key, points in raw.items():
-        parts = key.split("|")
-        if len(parts) == 3:
-            platform, provider, model = parts
-        elif len(parts) == 2:
-            # Backward compatibility: old format "provider|model" → openrouter
-            platform = "openrouter"
-            provider, model = parts
-        else:
-            continue
-        restored = []
-        for p in points:
-            try:
-                ts = datetime.fromisoformat(p["timestamp"])
-                restored.append({
-                    "_ts": ts,
-                    "timestamp": p["timestamp"],
-                    "input_price": p["input_price"],
-                    "output_price": p["output_price"],
-                })
-            except (KeyError, ValueError):
-                continue
-        restored = _prune_history(restored, now)
-        if restored:
-            _history[(platform, provider, model)] = restored

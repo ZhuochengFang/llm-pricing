@@ -1,8 +1,28 @@
 services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: llmpricing
+      POSTGRES_PASSWORD: llmpricing
+      POSTGRES_DB: llmpricing
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U llmpricing"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   app:
     build: .
     ports:
       - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql://llmpricing:llmpricing@db:5432/llmpricing"
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
       - price-data:/app/data
       - ./backend:/app/backend
@@ -10,3 +30,4 @@ services:
 
 volumes:
   price-data:
+  pgdata:
