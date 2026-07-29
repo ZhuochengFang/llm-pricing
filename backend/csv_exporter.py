@@ -1,3 +1,10 @@
+"""
+每日 CSV 快照导出器。
+
+每天 00:05 自动导出当日定价数据到 data/ 目录（llm_prices_YYYY-MM-DD.csv），
+并清理超过 7 天的旧文件。
+"""
+
 import csv
 import logging
 import os
@@ -12,7 +19,7 @@ CSV_HEADERS = ["Platform", "Provider", "Model", "Input $/1M tokens", "Output $/1
 
 
 def export_daily_csv(data_dir: str) -> str | None:
-    """Write today's pricing snapshot to a dated CSV file. Returns the path, or None if it already exists."""
+    """导出当日定价快照为 CSV 文件。如果当日文件已存在则跳过，返回文件路径或 None。"""
     today = date.today().isoformat()
     filepath = Path(data_dir) / f"llm_prices_{today}.csv"
 
@@ -33,7 +40,7 @@ def export_daily_csv(data_dir: str) -> str | None:
 
 
 def cleanup_old_csv(data_dir: str, max_age_days: int = 7) -> list[str]:
-    """Delete CSV files older than max_age_days. Returns list of deleted filenames."""
+    """删除超过指定天数的旧 CSV 文件，返回被删除的文件名列表。"""
     cutoff = date.today() - timedelta(days=max_age_days)
     deleted = []
 

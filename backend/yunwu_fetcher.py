@@ -1,3 +1,10 @@
+"""
+云雾 AI 平台 (yunwu.ai) 价格抓取器。
+
+从云雾 API 拉取模型定价数据，通过正则匹配识别供应商，
+将 one-api/new-api 体系的 model_ratio 换算为 $/1M tokens。
+"""
+
 import re
 import httpx
 import logging
@@ -6,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 YUNWU_API = "https://yunwu.ai/api/pricing"
 
+# 根据模型名前缀识别供应商的正则规则
 PROVIDER_PATTERNS = [
     (re.compile(r"^(gpt-|o[1-9]-|o[1-9]$|chatgpt-)"), "OpenAI"),
     (re.compile(r"^claude-"), "Anthropic"),
@@ -16,11 +24,12 @@ PROVIDER_PATTERNS = [
     (re.compile(r"^qwen"), "Qwen"),
 ]
 
-# In the one-api/new-api ecosystem: model_ratio=1 ≈ $2/1M input tokens
+# one-api/new-api 体系中 model_ratio=1 约等于 $2/1M 输入 tokens
 BASE_RATE_PER_MILLION = 2.0
 
 
 def _detect_provider(model_name: str) -> str | None:
+    """根据模型名前缀匹配供应商，无法识别时返回 None。"""
     for pattern, provider in PROVIDER_PATTERNS:
         if pattern.search(model_name):
             return provider
@@ -28,6 +37,7 @@ def _detect_provider(model_name: str) -> str | None:
 
 
 def _parse_model(entry: dict) -> dict | None:
+    """解析单个云雾模型条目：过滤不可用/非文本模型，根据 quota_type 计算价格。"""
     model_name = entry.get("model_name", "")
     if not model_name or not entry.get("available", False):
         return None
@@ -66,7 +76,7 @@ def _parse_model(entry: dict) -> dict | None:
 
 
 async def fetch_yunwu_prices() -> list[dict]:
-    """Fetch live pricing from Yunwu. Returns list of model dicts or empty list on failure."""
+    """从云雾 AI 平台拉取实时定价，按 (供应商, 模型名) 去重后返回。"""
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.get(YUNWU_API)

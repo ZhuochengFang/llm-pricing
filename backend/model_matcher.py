@@ -1,6 +1,15 @@
+"""
+跨平台模型名称匹配器。
+
+不同平台对同一模型的命名可能不同（如 OpenRouter 用 deepseek-chat，
+云雾用 deepseek-v3），本模块将它们归一化到同一个规范名称 (canonical)，
+使得前端可以将同一模型在不同平台的价格并排展示。
+"""
+
 import re
 
 
+# 手动维护的别名映射：(供应商, 原始模型名) → 规范名称
 MANUAL_ALIASES: dict[tuple[str, str], str] = {
     ("DeepSeek", "deepseek-reasoner"): "deepseek-r1",
     ("DeepSeek", "deepseek-v3"): "deepseek-chat",
@@ -12,6 +21,7 @@ MANUAL_ALIASES: dict[tuple[str, str], str] = {
 
 
 def normalize_model_name(name: str) -> str:
+    """规范化模型名称：去除日期后缀、统一分隔符、移除 -instruct 等变体标记。"""
     s = name
     s = re.sub(r"-\d{4}-\d{2}-\d{2}$", "", s)
     s = re.sub(r"-\d{8}$", "", s)
@@ -25,6 +35,7 @@ def normalize_model_name(name: str) -> str:
 
 
 def _canonical(provider: str, model: str) -> str:
+    """获取模型的规范名称：先查手动别名，再执行自动规范化。"""
     aliased = MANUAL_ALIASES.get((provider, model), model)
     normalized = normalize_model_name(aliased)
     if aliased == model:
@@ -37,6 +48,12 @@ def _canonical(provider: str, model: str) -> str:
 def build_alias_map(
     or_models: list[dict], yw_models: list[dict]
 ) -> dict[tuple[str, str], dict[str, str]]:
+    """
+    构建跨平台模型别名映射。
+
+    将 OpenRouter 和云雾的模型按 (供应商, 规范名) 分组，
+    对同时出现在两个平台的模型，建立双向映射（每个平台取最短名称作为代表）。
+    """
     index: dict[tuple[str, str], dict[str, list[str]]] = {}
 
     for m in or_models:

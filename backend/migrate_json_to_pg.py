@@ -1,11 +1,12 @@
 """
-One-time migration: price_history.json -> PostgreSQL.
+一次性迁移脚本：将 JSON 格式的价格历史数据导入 PostgreSQL。
 
-Usage:
+用法：
     python migrate_json_to_pg.py [path/to/price_history.json]
 
-Defaults to data/price_history.json if no argument given.
-Expects DATABASE_URL env var or uses the default connection string.
+若不指定路径则默认读取 data/price_history.json。
+JSON 键格式为 "platform|provider|model" 或 "provider|model"（默认 platform 为 openrouter）。
+需要设置 DATABASE_URL 环境变量，或使用默认连接字符串。
 """
 import asyncio
 import json

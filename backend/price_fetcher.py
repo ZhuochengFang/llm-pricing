@@ -1,3 +1,10 @@
+"""
+OpenRouter 价格抓取器。
+
+从 OpenRouter API (openrouter.ai/api/v1/models) 拉取所有模型数据，
+通过 PROVIDER_MAP 过滤已知厂商，将价格归一化为 $/1M tokens。
+"""
+
 import httpx
 import logging
 from datetime import datetime, timezone
@@ -6,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_API = "https://openrouter.ai/api/v1/models"
 
+# OpenRouter 模型 ID 前缀 → 显示用供应商名
 PROVIDER_MAP = {
     "openai": "OpenAI",
     "anthropic": "Anthropic",
@@ -20,6 +28,7 @@ PROVIDER_MAP = {
 
 
 def _parse_model(entry: dict) -> dict | None:
+    """解析单个 OpenRouter 模型条目，跳过免费/nitro/floor 变体（含 ':' 的模型名）。"""
     model_id = entry.get("id", "")
     parts = model_id.split("/", 1)
     if len(parts) != 2:
@@ -61,7 +70,7 @@ def _parse_model(entry: dict) -> dict | None:
 
 
 async def fetch_prices() -> list[dict]:
-    """Fetch live pricing from OpenRouter. Returns list of model dicts or empty list on failure."""
+    """从 OpenRouter 拉取实时定价，按 (供应商, 模型名) 去重后返回。"""
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.get(OPENROUTER_API)

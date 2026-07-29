@@ -1,3 +1,13 @@
+"""
+FastAPI 应用入口。
+
+职责：
+- 定义所有 API 路由（价格查询、状态、手动刷新、Excel 导出、历史记录）
+- 管理应用生命周期（启动时初始化数据库连接池、执行首次价格抓取；关闭时释放资源）
+- 通过 APScheduler 调度定时任务（每小时刷新价格、每日导出 CSV、每日清理过期历史）
+- 挂载前端静态文件，并将 index.html 作为兜底路由
+"""
+
 import asyncio
 import io
 import logging
@@ -39,7 +49,7 @@ _SOURCE_STARTUP = "STARTUP"       # 应用启动时首次加载
 
 def _write_refresh_log(success: bool, model_count: int = 0, error_msg: str = "",
                        source: str = _SOURCE_SCHEDULED, platform: str = "openrouter"):
-    """Write refresh result to the log file and generate an error file on failure."""
+    """将刷新结果写入 refresh.log；失败时额外生成独立的错误日志文件。"""
     os.makedirs(DATA_DIR, exist_ok=True)
     now = datetime.now(CHINA_TZ)
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S CST")
@@ -64,7 +74,7 @@ def _write_refresh_log(success: bool, model_count: int = 0, error_msg: str = "",
 
 
 async def refresh_prices():
-    logger.info("Refreshing prices from OpenRouter...")
+    """从 OpenRouter 拉取最新价格，更新内存数据并写入数据库历史。"""
     models = await fetch_prices()
     if models:
         try:
@@ -86,7 +96,7 @@ async def refresh_prices():
 
 
 async def refresh_yunwu_prices():
-    logger.info("Refreshing prices from Yunwu...")
+    """从云雾 AI 平台拉取最新价格，更新内存数据并写入数据库历史。"""
     models = await fetch_yunwu_prices()
     if models:
         try:
@@ -104,7 +114,7 @@ async def refresh_yunwu_prices():
 
 
 async def refresh_all(source: str = _SOURCE_SCHEDULED):
-    """Refresh prices from all platforms concurrently."""
+    """并发刷新所有平台的价格，将结果写入日志。"""
     results = await asyncio.gather(
         refresh_prices(),
         refresh_yunwu_prices(),
@@ -132,7 +142,7 @@ async def refresh_all(source: str = _SOURCE_SCHEDULED):
 
 
 async def scheduled_refresh():
-    """定时刷新，写入日志。"""
+    """定时刷新入口，捕获异常确保调度器不会因单次失败而终止。"""
     try:
         await refresh_all(source=_SOURCE_SCHEDULED)
     except Exception as e:
@@ -144,25 +154,29 @@ async def scheduled_refresh():
 
 
 def daily_csv_task():
+    """每日 CSV 快照任务：导出当日数据并清理过期文件。"""
     export_daily_csv(DATA_DIR)
     cleanup_old_csv(DATA_DIR)
 
 def arithmetic_sequence(start, end, step=1):
-    """生成等差数列字符串"""
+    """生成等差数列字符串，用于 cron 表达式（如 '1,2,3,...,14'）。"""
     return ','.join(str(i) for i in range(start, end + 1, step))
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """应用生命周期管理：启动时初始化数据库、首次抓取、注册定时任务；关闭时释放资源。"""
     os.makedirs(DATA_DIR, exist_ok=True)
 
     db_ok = await init_pool()
     if not db_ok:
         logger.warning("Starting without database — history unavailable")
 
+    # 启动时立即执行一次全平台价格刷新
     await refresh_all(source=_SOURCE_STARTUP)
     daily_csv_task()
-    # 每日中国时间 09:00–22:00 每小时整点刷新价格（UTC 01:00–14:00）
+
+    # 定时任务：每日中国时间 09:00–22:00 每小时整点刷新价格（UTC 01:00–14:00）
     scheduler.add_job(
         scheduled_refresh,
         "cron",
@@ -170,8 +184,10 @@ async def lifespan(app: FastAPI):
         id="price_refresh",
         misfire_grace_time=300,
     )
+    # 定时任务：每日 00:05 导出 CSV 快照
     scheduler.add_job(daily_csv_task, "cron", hour=0, minute=5, id="daily_csv",
                       misfire_grace_time=300)
+    # 定时任务：每日 UTC 03:00 清理超过 7 天的历史数据
     scheduler.add_job(cleanup_old_history, "cron", hour=3, minute=0,
                       id="history_cleanup", misfire_grace_time=300)
     scheduler.start()
@@ -185,24 +201,30 @@ app = FastAPI(title="LLM Pricing Dashboard", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
+# ————— API 路由 —————
+
 @app.get("/api/prices")
 def prices(provider: Optional[str] = Query(None), platform: Optional[str] = Query(None)):
+    """获取当前所有模型定价，支持按供应商和平台筛选。"""
     return get_prices(provider, platform)
 
 
 @app.get("/api/status")
 def status():
+    """获取数据源状态（来源、更新时间、模型数量）。"""
     return get_status()
 
 
 @app.post("/api/refresh")
 async def manual_refresh():
+    """手动触发全平台价格刷新。"""
     await refresh_all(source=_SOURCE_MANUAL)
     return get_status()
 
 
 @app.get("/api/export")
 def export_excel(provider: Optional[str] = Query(None), platform: Optional[str] = Query(None)):
+    """导出当前定价数据为 Excel (.xlsx) 文件并返回下载流。"""
     rows = get_prices(provider, platform)
     wb = Workbook()
     ws = wb.active
@@ -227,27 +249,34 @@ def export_excel(provider: Optional[str] = Query(None), platform: Optional[str] 
 @app.get("/api/history")
 async def history(provider: str = Query(...), model: str = Query(...),
             platform: Optional[str] = Query(None)):
+    """查询指定模型的价格历史（按供应商+模型名）。"""
     return await get_history(provider, model, platform)
 
 
 @app.get("/api/history/{slug}")
 async def history_by_slug(slug: str):
+    """按 URL slug 查询模型价格历史。"""
     result = await get_history_by_slug(slug)
     if not result:
         return JSONResponse(status_code=404, content={"detail": "Unknown model slug"})
     return result
 
 
+# ————— 前端页面路由 —————
+
 @app.get("/history")
 def history_page():
+    """返回历史价格页面。"""
     return FileResponse("static/history.html")
 
 
 @app.get("/{slug}")
 def history_slug_page(slug: str):
+    """按 slug 路径访问历史价格页面（如 /gpt-4o）。"""
     return FileResponse("static/history.html")
 
 
 @app.get("/{full_path:path}")
 def serve_frontend(full_path: str):
+    """兜底路由：所有未匹配的路径返回主页 index.html。"""
     return FileResponse("static/index.html")

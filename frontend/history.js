@@ -1,3 +1,12 @@
+/**
+ * 历史价格页面脚本
+ *
+ * 功能：
+ * - 通过 URL slug（如 /gpt-4o）或查询参数（?provider=...&model=...）确定目标模型
+ * - 从 /api/history 加载价格历史数据
+ * - 使用 Chart.js 绘制多平台价格趋势折线图
+ * - 每 10 分钟自动刷新图表
+ */
 (function () {
     const PLATFORM_LABELS = { openrouter: "OpenRouter", yunwu: "Yunwu" };
     const titleEl = document.getElementById("model-title");
@@ -5,6 +14,7 @@
     const canvas = document.getElementById("history-chart");
     let chartInstance = null;
 
+    // 从 URL 路径或查询参数中提取模型信息
     const pathSlug = window.location.pathname.replace(/^\/+/, "").split("/")[0];
     const params = new URLSearchParams(window.location.search);
     const providerParam = params.get("provider");
@@ -15,12 +25,14 @@
     let model = modelParam ? decodeURIComponent(modelParam) : null;
 
     function roundToMinute(ts) {
+        // 将时间戳对齐到分钟，用于跨平台数据时间轴合并
         var d = new Date(ts);
         d.setSeconds(0, 0);
         return d.getTime();
     }
 
     async function loadHistory() {
+        // 加载历史数据并渲染 Chart.js 折线图
         let historyByPlatform = {};
 
         if (slug) {
@@ -55,7 +67,7 @@
 
         const multiPlatform = platforms.length > 1;
 
-        // Merge all timestamps, round to minute for alignment across platforms
+        // 合并所有平台的时间戳，对齐到分钟以便生成统一的 X 轴
         const timelineSet = new Set();
         for (const plat of platforms) {
             for (const p of historyByPlatform[plat]) {
@@ -68,6 +80,7 @@
             month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"
         }));
 
+        // 每个平台的线条颜色：输入价格 / 输出价格
         const COLORS = {
             openrouter: { input: "#58a6ff", output: "#f97316" },
             yunwu:      { input: "#34d399", output: "#f472b6" },
@@ -131,6 +144,7 @@
         statusEl.textContent = `Latest update: ${new Date(latestTs).toLocaleString()}`;
     }
 
+    // 页面加载时获取历史数据，之后每 10 分钟自动刷新
     loadHistory().catch(() => {
         statusEl.textContent = "Failed to load history.";
     });

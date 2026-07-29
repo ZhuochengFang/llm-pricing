@@ -1,20 +1,37 @@
+"""
+内存定价数据存储模块。
+
+职责：
+- 维护静态兜底数据（PRICING_DATA）和从各平台抓取的实时数据（_live_data、_yunwu_data）
+- 合并多平台数据，按供应商→模型系列→版本号→变体→平台的多级规则排序
+- 生成 URL slug 用于前端路由
+- 通过 model_matcher 实现跨平台同名模型的关联
+- 提供历史数据查询接口（委托给 database 模块）
+"""
+
 import re
 from datetime import datetime, timezone
 from typing import Optional
 
 from model_matcher import build_alias_map, _canonical
 
+# 供应商显示顺序
 _PROVIDER_ORDER = {
     "OpenAI": 0, "Anthropic": 1, "Google": 2, "DeepSeek": 3,
     "Mistral": 4, "Meta": 5, "Qwen": 6,
 }
 
+# 平台显示顺序
 _PLATFORM_ORDER = {"openrouter": 0, "yunwu": 1}
 
+# 从模型名中提取版本号的正则：前缀 + 数字版本 + 可选后缀
 _version_split_re = re.compile(r"^(.*?[-.]?)(\d+(?:\.\d+)*)([-.].*)?$")
+# 从后缀中提取数字前缀的正则（用于参数量排序，如 8b、70b、405b）
+_suffix_num_re = re.compile(r"^(\d+)")
 
 
 def _extract_version(name: str) -> tuple[str, str, tuple]:
+    """从模型名中拆分出：基础名称(prefix)、后缀(suffix)、版本号元组(version)。"""
     m = _version_split_re.match(name)
     if m:
         prefix = m.group(1).rstrip("-.")
@@ -27,7 +44,16 @@ def _extract_version(name: str) -> tuple[str, str, tuple]:
     return prefix, suffix, version
 
 
+def _suffix_sort_key(suffix: str) -> tuple:
+    """后缀排序键：数字前缀按数值排序（如 8b < 70b < 405b），其余按字母序。"""
+    m = _suffix_num_re.match(suffix)
+    if m:
+        return (0, int(m.group(1)), suffix[m.end():])
+    return (1, 0, suffix)
+
+
 def _sort_key(entry: dict) -> tuple:
+    """多级排序键：供应商顺序 → 模型系列 → 版本号 → 变体名 → 平台顺序。"""
     provider = entry["provider"]
     platform = entry.get("platform", "openrouter")
     model = entry["model"]
@@ -40,12 +66,13 @@ def _sort_key(entry: dict) -> tuple:
     return (
         _PROVIDER_ORDER.get(provider, 99),
         prefix,
-        suffix,
         version,
+        _suffix_sort_key(suffix),
         _PLATFORM_ORDER.get(platform, 99),
     )
 
 
+# 静态兜底数据：当 API 抓取失败时使用
 PRICING_DATA = [
     # OpenAI
     {"provider": "OpenAI", "model": "gpt-4o", "input_price": 2.50, "output_price": 10.00, "context_window": 128000},
@@ -85,13 +112,14 @@ PRICING_DATA = [
 
 PLATFORMS = ("openrouter", "yunwu")
 
-_live_data: list[dict] = []
-_yunwu_data: list[dict] = []
-_updated_at: str = datetime.now(timezone.utc).isoformat()
-_yunwu_updated_at: str = ""
-_source: str = "static"
-_yunwu_source: str = "none"
-_alias_map: dict[tuple[str, str], dict[str, str]] = {}
+# ————— 模块级可变状态 —————
+_live_data: list[dict] = []          # OpenRouter 实时数据
+_yunwu_data: list[dict] = []         # 云雾平台实时数据
+_updated_at: str = datetime.now(timezone.utc).isoformat()   # OpenRouter 最近更新时间
+_yunwu_updated_at: str = ""          # 云雾平台最近更新时间
+_source: str = "static"             # OpenRouter 数据来源：static / live
+_yunwu_source: str = "none"         # 云雾数据来源：none / live
+_alias_map: dict[tuple[str, str], dict[str, str]] = {}  # 跨平台模型别名映射
 
 _slug_re = re.compile(r"[^a-z0-9]+")
 
@@ -131,6 +159,7 @@ def _rebuild_alias_map() -> None:
 
 
 def update_prices(new_data: list[dict]) -> None:
+    """更新 OpenRouter 实时数据并重建跨平台别名映射。"""
     global _live_data, _updated_at, _source
     _live_data = new_data
     now = datetime.now(timezone.utc)
@@ -140,6 +169,7 @@ def update_prices(new_data: list[dict]) -> None:
 
 
 def update_yunwu_prices(new_data: list[dict]) -> None:
+    """更新云雾平台实时数据并重建跨平台别名映射。"""
     global _yunwu_data, _yunwu_updated_at, _yunwu_source
     _yunwu_data = new_data
     now = datetime.now(timezone.utc)
@@ -149,6 +179,7 @@ def update_yunwu_prices(new_data: list[dict]) -> None:
 
 
 def get_prices(provider: Optional[str] = None, platform: Optional[str] = None) -> list[dict]:
+    """合并所有平台数据，按排序规则排列，附加 slug 和元数据后返回。"""
     or_data = _live_data if _live_data else PRICING_DATA
     or_entries = [{"platform": "openrouter", **e} for e in or_data]
     yw_entries = [{"platform": "yunwu", **e} for e in _yunwu_data]
@@ -191,6 +222,7 @@ def get_status() -> dict:
 
 
 async def get_history(provider: str, model: str, platform: Optional[str] = None) -> dict:
+    """查询模型价格历史，自动合并所有别名（如 deepseek-v3 与 deepseek-chat）的数据。"""
     from database import query_history, is_available
 
     if not is_available():
@@ -224,6 +256,7 @@ async def get_history(provider: str, model: str, platform: Optional[str] = None)
 
 
 async def get_history_by_slug(slug: str) -> dict | None:
+    """通过 URL slug 反查供应商和模型名，再获取价格历史。"""
     all_data = (_live_data if _live_data else PRICING_DATA) + _yunwu_data
     slug_index = _build_slug_index(all_data)
     slug_map = {value: key for key, value in slug_index.items()}

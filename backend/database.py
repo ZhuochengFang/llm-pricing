@@ -1,3 +1,14 @@
+"""
+PostgreSQL 数据库模块。
+
+职责：
+- 管理 asyncpg 连接池的创建与关闭
+- 自动建表（price_history）和索引
+- 批量写入价格历史记录
+- 按供应商/模型/平台查询历史数据（默认 7 天窗口）
+- 定期清理过期历史数据
+"""
+
 import asyncpg
 import logging
 import os
@@ -5,12 +16,13 @@ from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
 
-_pool: asyncpg.Pool | None = None
+_pool: asyncpg.Pool | None = None  # 模块级连接池
 
 DATABASE_URL_DEFAULT = "postgresql://llmpricing:llmpricing@db:5432/llmpricing"
 
 
 async def init_pool() -> bool:
+    """创建数据库连接池并确保表结构存在。"""
     global _pool
     dsn = os.environ.get("DATABASE_URL", DATABASE_URL_DEFAULT)
     try:
@@ -25,6 +37,7 @@ async def init_pool() -> bool:
 
 
 async def close_pool() -> None:
+    """关闭连接池并释放资源。"""
     global _pool
     if _pool:
         await _pool.close()
@@ -32,6 +45,7 @@ async def close_pool() -> None:
 
 
 async def _ensure_schema() -> None:
+    """确保 price_history 表和索引存在（幂等操作）。"""
     async with _pool.acquire() as conn:
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS price_history (
@@ -61,6 +75,7 @@ def is_available() -> bool:
 async def insert_history_batch(
     platform: str, models: list[dict], recorded_at: datetime
 ) -> None:
+    """使用 COPY 协议批量写入价格历史记录。"""
     if not _pool:
         return
     records = [
@@ -85,6 +100,7 @@ async def query_history(
     window: timedelta = timedelta(days=7),
     max_points: int = 1008,
 ) -> dict[str, list[dict]]:
+    """查询指定模型的价格历史，按平台分组返回。默认 7 天窗口，最多 1008 个数据点。"""
     if not _pool:
         return {}
     cutoff = datetime.now(timezone.utc) - window
@@ -128,6 +144,7 @@ async def query_history(
 
 
 async def cleanup_old_history(window: timedelta = timedelta(days=7)) -> int:
+    """删除超过保留窗口（默认 7 天）的历史记录，返回删除行数。"""
     if not _pool:
         return 0
     cutoff = datetime.now(timezone.utc) - window
