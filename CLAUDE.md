@@ -105,3 +105,54 @@ llm-pricing/
 - 刷新日志写入 `data/refresh.log`，通过 `[SCHEDULED]`、`[MANUAL]`、`[STARTUP]` 标签区分触发来源
 - 模型排序规则：供应商（固定顺序）→ 模型系列名称 → 版本号（升序）→ 变体名 → 平台（OpenRouter 优先）
 - 前端默认保持后端排序，用户可点击列头切换排序方式
+
+## 已知问题与排查记录
+
+### 云雾 AI (yunwu.ai) 连接失败（2026-07-30 发现）
+
+**现象：** Docker 容器内 `yunwu_fetcher` 无法连接 yunwu.ai，错误为 `All connection attempts failed`（TCP 连接超时）。OpenRouter 不受影响。
+
+**根因分析：**
+- yunwu.ai 的 IP（`107.181.166.244`）从主机直连也超时（`curl --noproxy '*'` 确认），需要走代理才能访问
+- 主机上 mihomo 代理（`127.0.0.1:7890`）可正常代理访问 yunwu.ai
+- Docker 容器内没有代理环境变量，且代理仅监听 `127.0.0.1`，容器无法访问
+- openrouter.ai 可直连，不受此影响
+
+**如需修复，有以下方案：**
+
+1. **方案 A：docker-compose.yml 添加代理**（推荐）
+   - 将 mihomo 的 `bind-address` 改为 `0.0.0.0`（允许 Docker 网络访问）
+   - 在 `docker-compose.yml` 的 `app.environment` 中添加：
+     ```
+     HTTPS_PROXY: "http://host.docker.internal:7890"
+     HTTP_PROXY: "http://host.docker.internal:7890"
+     NO_PROXY: "localhost,127.0.0.1,db"
+     ```
+
+2. **方案 B：使用 `network_mode: host`**
+   - app 容器使用主机网络，直接访问 `localhost:7890` 代理
+   - 需要同时：将 `DATABASE_URL` 改为 `localhost`、给 db 服务添加 `ports: "5432:5432"`
+   - 缺点：失去 Docker 网络隔离
+
+3. **方案 C：等待恢复**
+   - 可能是 yunwu.ai 临时的网络/DNS 变更，过一阵可能恢复直连
+
+   **最终采用了方案A进行修复，在docker容器环境下，主机需要开启代理**
+
+**诊断命令备忘：**
+```bash
+# 从容器内测试连接
+docker compose exec app bash -c "curl -v --connect-timeout 10 https://yunwu.ai/api/pricing 2>&1 | head -20"
+
+# 从主机测试直连（不走代理）
+curl --noproxy '*' --connect-timeout 10 -sI https://yunwu.ai/api/pricing
+
+# 查看代理监听地址
+ss -tlnp | grep ':7890'
+
+# 查看容器内是否有代理环境变量
+docker compose exec app env | grep -i proxy
+
+# 查看最近的刷新日志
+docker compose logs --tail=50 app | grep -iE "yunwu|error|fail"
+```

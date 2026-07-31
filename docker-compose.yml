@@ -20,6 +20,9 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: "postgresql://llmpricing:llmpricing@db:5432/llmpricing"
+      #HTTPS_PROXY: "http://host.docker.internal:7890"
+      #HTTP_PROXY: "http://host.docker.internal:7890"
+      #NO_PROXY: "localhost,127.0.0.1,db"
     depends_on:
       db:
         condition: service_healthy
