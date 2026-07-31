@@ -5,6 +5,8 @@ OpenRouter 价格抓取器。
 通过 PROVIDER_MAP 过滤已知厂商，将价格归一化为 $/1M tokens。
 """
 
+import time
+import traceback
 import httpx
 import logging
 from datetime import datetime, timezone
@@ -71,9 +73,11 @@ def _parse_model(entry: dict) -> dict | None:
 
 async def fetch_prices() -> list[dict]:
     """从 OpenRouter 拉取实时定价，按 (供应商, 模型名) 去重后返回。"""
+    start = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.get(OPENROUTER_API)
+            elapsed = time.monotonic() - start
             resp.raise_for_status()
             data = resp.json().get("data", [])
 
@@ -88,11 +92,30 @@ async def fetch_prices() -> list[dict]:
                     models.append(parsed)
 
         if models:
-            logger.info("Fetched %d models from OpenRouter", len(models))
+            logger.info("Fetched %d models from OpenRouter (%.1fs)", len(models), elapsed)
             return models
         else:
-            logger.warning("OpenRouter returned no usable models")
+            logger.warning("OpenRouter returned data (%d raw entries) but no usable models after filtering (%.1fs)",
+                           len(data), elapsed)
             return []
+    except httpx.HTTPStatusError as e:
+        elapsed = time.monotonic() - start
+        body_preview = e.response.text[:500] if e.response else "(no response body)"
+        logger.error("OpenRouter HTTP error %s for %s (%.1fs)\nResponse body: %s",
+                     e.response.status_code, OPENROUTER_API, elapsed, body_preview)
+        return []
+    except httpx.ConnectError as e:
+        elapsed = time.monotonic() - start
+        logger.error("OpenRouter connection failed for %s (%.1fs): %s\n%s",
+                     OPENROUTER_API, elapsed, e, traceback.format_exc())
+        return []
+    except httpx.TimeoutException as e:
+        elapsed = time.monotonic() - start
+        logger.error("OpenRouter request timed out for %s (%.1fs): %s",
+                     OPENROUTER_API, elapsed, e)
+        return []
     except Exception as e:
-        logger.error("Failed to fetch from OpenRouter: %s", e)
+        elapsed = time.monotonic() - start
+        logger.error("OpenRouter unexpected error for %s (%.1fs): %s\n%s",
+                     OPENROUTER_API, elapsed, e, traceback.format_exc())
         return []

@@ -24,7 +24,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 RUN node -v && npm -v && python3 --version
 
 # 4. 安装 Python 依赖
-WORKDIR /app
+WORKDIR /app/backend
 COPY backend/requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
@@ -35,8 +35,8 @@ COPY backend/ .
 COPY frontend/ /app/static/
 
 # 6. 创建数据目录
-RUN mkdir -p /app/data
-ENV PRICE_DB_PATH=/app/data/daily_prices.db
+RUN mkdir -p /app/backend/data
+ENV PRICE_DB_PATH=/app/backend/data/daily_prices.db
 
 # 7. 复制启动脚本
 COPY entrypoint.sh /app/entrypoint.sh

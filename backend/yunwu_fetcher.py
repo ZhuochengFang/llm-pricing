@@ -6,6 +6,8 @@
 """
 
 import re
+import time
+import traceback
 import httpx
 import logging
 
@@ -77,9 +79,11 @@ def _parse_model(entry: dict) -> dict | None:
 
 async def fetch_yunwu_prices() -> list[dict]:
     """从云雾 AI 平台拉取实时定价，按 (供应商, 模型名) 去重后返回。"""
+    start = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.get(YUNWU_API)
+            elapsed = time.monotonic() - start
             resp.raise_for_status()
             data = resp.json().get("data", [])
 
@@ -94,11 +98,30 @@ async def fetch_yunwu_prices() -> list[dict]:
                     models.append(parsed)
 
         if models:
-            logger.info("Fetched %d models from Yunwu", len(models))
+            logger.info("Fetched %d models from Yunwu (%.1fs)", len(models), elapsed)
             return models
         else:
-            logger.warning("Yunwu returned no usable models")
+            logger.warning("Yunwu returned data (%d raw entries) but no usable models after filtering (%.1fs)",
+                           len(data), elapsed)
             return []
+    except httpx.HTTPStatusError as e:
+        elapsed = time.monotonic() - start
+        body_preview = e.response.text[:500] if e.response else "(no response body)"
+        logger.error("Yunwu HTTP error %s for %s (%.1fs)\nResponse body: %s",
+                     e.response.status_code, YUNWU_API, elapsed, body_preview)
+        return []
+    except httpx.ConnectError as e:
+        elapsed = time.monotonic() - start
+        logger.error("Yunwu connection failed for %s (%.1fs): %s\n%s",
+                     YUNWU_API, elapsed, e, traceback.format_exc())
+        return []
+    except httpx.TimeoutException as e:
+        elapsed = time.monotonic() - start
+        logger.error("Yunwu request timed out for %s (%.1fs): %s",
+                     YUNWU_API, elapsed, e)
+        return []
     except Exception as e:
-        logger.error("Failed to fetch from Yunwu: %s", e)
+        elapsed = time.monotonic() - start
+        logger.error("Yunwu unexpected error for %s (%.1fs): %s\n%s",
+                     YUNWU_API, elapsed, e, traceback.format_exc())
         return []

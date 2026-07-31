@@ -27,7 +27,7 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - price-data:/app/data
+      - price-data:/app/backend/data
       - ./backend:/app/backend
       - ./frontend:/app/static
 

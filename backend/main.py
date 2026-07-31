@@ -12,6 +12,7 @@ import asyncio
 import io
 import logging
 import os
+import traceback
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
@@ -48,7 +49,8 @@ _SOURCE_STARTUP = "STARTUP"       # 应用启动时首次加载
 
 
 def _write_refresh_log(success: bool, model_count: int = 0, error_msg: str = "",
-                       source: str = _SOURCE_SCHEDULED, platform: str = "openrouter"):
+                       source: str = _SOURCE_SCHEDULED, platform: str = "openrouter",
+                       exception: Exception | None = None):
     """将刷新结果写入 refresh.log；失败时额外生成独立的错误日志文件。"""
     os.makedirs(DATA_DIR, exist_ok=True)
     now = datetime.now(CHINA_TZ)
@@ -69,8 +71,16 @@ def _write_refresh_log(success: bool, model_count: int = 0, error_msg: str = "",
         error_filename = f"error_{now.strftime('%Y%m%d_%H%M%S')}_{platform}.log"
         error_path = os.path.join(DATA_DIR, error_filename)
         with open(error_path, "w") as f:
-            f.write(f"Refresh failed at {timestamp} ({platform})\n")
-            f.write(f"Error: {error_msg}\n")
+            f.write(f"Platform:  {platform}\n")
+            f.write(f"Source:    {source}\n")
+            f.write(f"Time:      {timestamp}\n")
+            f.write(f"Error:     {error_msg}\n")
+            if exception:
+                f.write(f"\nException type: {type(exception).__module__}.{type(exception).__qualname__}\n")
+                f.write(f"Exception args: {exception.args}\n")
+                f.write(f"\nTraceback:\n{''.join(traceback.format_exception(exception))}\n")
+                if hasattr(exception, '__cause__') and exception.__cause__:
+                    f.write(f"Caused by: {exception.__cause__}\n")
 
 
 async def refresh_prices():
@@ -125,7 +135,8 @@ async def refresh_all(source: str = _SOURCE_SCHEDULED):
     yw_result = results[1]
 
     if isinstance(or_result, Exception):
-        _write_refresh_log(False, 0, str(or_result), source=source, platform="openrouter")
+        _write_refresh_log(False, 0, str(or_result), source=source, platform="openrouter",
+                           exception=or_result)
     else:
         or_ok, or_count = or_result
         _write_refresh_log(or_ok, or_count,
@@ -133,7 +144,8 @@ async def refresh_all(source: str = _SOURCE_SCHEDULED):
                            source=source, platform="openrouter")
 
     if isinstance(yw_result, Exception):
-        _write_refresh_log(False, 0, str(yw_result), source=source, platform="yunwu")
+        _write_refresh_log(False, 0, str(yw_result), source=source, platform="yunwu",
+                           exception=yw_result)
     else:
         yw_ok, yw_count = yw_result
         _write_refresh_log(yw_ok, yw_count,
@@ -180,7 +192,7 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(
         scheduled_refresh,
         "cron",
-        hour=arithmetic_sequence(1, 14),
+        hour=arithmetic_sequence(1, 13, 4),  # UTC 01:00, 05:00, 09:00, 13:00
         id="price_refresh",
         misfire_grace_time=300,
     )
@@ -198,7 +210,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="LLM Pricing Dashboard", lifespan=lifespan)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 
 
 # ————— API 路由 —————
@@ -267,16 +279,16 @@ async def history_by_slug(slug: str):
 @app.get("/history")
 def history_page():
     """返回历史价格页面。"""
-    return FileResponse("static/history.html")
+    return FileResponse("/app/static/history.html")
 
 
 @app.get("/{slug}")
 def history_slug_page(slug: str):
     """按 slug 路径访问历史价格页面（如 /gpt-4o）。"""
-    return FileResponse("static/history.html")
+    return FileResponse("/app/static/history.html")
 
 
 @app.get("/{full_path:path}")
 def serve_frontend(full_path: str):
     """兜底路由：所有未匹配的路径返回主页 index.html。"""
-    return FileResponse("static/index.html")
+    return FileResponse("/app/static/index.html")
