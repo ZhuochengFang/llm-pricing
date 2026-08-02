@@ -5,6 +5,7 @@
 将 one-api/new-api 体系的 model_ratio 换算为 $/1M tokens。
 """
 
+import os
 import re
 import time
 import traceback
@@ -14,6 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 YUNWU_API = "https://yunwu.ai/api/pricing"
+YUNWU_PROXY = os.environ.get("YUNWU_PROXY", "")
 
 # 根据模型名前缀识别供应商的正则规则
 PROVIDER_PATTERNS = [
@@ -80,8 +82,9 @@ def _parse_model(entry: dict) -> dict | None:
 async def fetch_yunwu_prices() -> list[dict]:
     """从云雾 AI 平台拉取实时定价，按 (供应商, 模型名) 去重后返回。"""
     start = time.monotonic()
+    proxy = YUNWU_PROXY or None
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=30, proxy=proxy) as client:
             resp = await client.get(YUNWU_API)
             elapsed = time.monotonic() - start
             resp.raise_for_status()
