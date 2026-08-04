@@ -38,6 +38,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+LOG_DIR = os.path.join(os.path.dirname(__file__), "logs")
 
 scheduler = AsyncIOScheduler()
 CHINA_TZ = timezone(timedelta(hours=8))
@@ -52,12 +53,13 @@ def _write_refresh_log(success: bool, model_count: int = 0, error_msg: str = "",
                        source: str = _SOURCE_SCHEDULED, platform: str = "openrouter",
                        exception: Exception | None = None):
     """将刷新结果写入 refresh.log；失败时额外生成独立的错误日志文件。"""
-    os.makedirs(DATA_DIR, exist_ok=True)
+    log_dir = LOG_DIR
+    os.makedirs(log_dir, exist_ok=True)
     now = datetime.now(CHINA_TZ)
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S CST")
 
     # 追加到主刷新日志
-    log_path = os.path.join(DATA_DIR, "refresh.log")
+    log_path = os.path.join(log_dir, "refresh.log")
     tag = f"[{source}]" if platform == "openrouter" else f"[{source}:{platform}]"
     if success:
         line = f"[{timestamp}] {tag} SUCCESS — refreshed {model_count} models\n"
@@ -69,7 +71,7 @@ def _write_refresh_log(success: bool, model_count: int = 0, error_msg: str = "",
     # 失败时额外生成独立的错误日志文件
     if not success:
         error_filename = f"error_{now.strftime('%Y%m%d_%H%M%S')}_{platform}.log"
-        error_path = os.path.join(DATA_DIR, error_filename)
+        error_path = os.path.join(log_dir, error_filename)
         with open(error_path, "w") as f:
             f.write(f"Platform:  {platform}\n")
             f.write(f"Source:    {source}\n")

@@ -29,9 +29,11 @@ services:
         condition: service_healthy
     volumes:
       - price-data:/app/backend/data
+      - price-logs:/app/backend/logs
       - ./backend:/app/backend
       - ./frontend:/app/static
 
 volumes:
   price-data:
+  price-logs:
   pgdata:
