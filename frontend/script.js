@@ -66,10 +66,10 @@
             updatedEl.innerHTML = "Last updated — " + parts.join(" &nbsp;|&nbsp; ");
         }
 
-        // 生成平台筛选按钮
+        // 生成平台筛选按钮（重建后恢复已选中状态）
         const platforms = [...new Set(data.map(d => d.platform))];
         platformFiltersEl.innerHTML = platforms.map(p =>
-            `<button class="filter-btn platform-filter" data-platform="${p}">${PLATFORM_LABELS[p] || p}</button>`
+            `<button class="filter-btn platform-filter${p === activePlatform ? " active" : ""}" data-platform="${p}">${PLATFORM_LABELS[p] || p}</button>`
         ).join("");
         platformFiltersEl.querySelectorAll(".platform-filter").forEach(btn => {
             btn.addEventListener("click", () => {
@@ -81,10 +81,10 @@
             });
         });
 
-        // 生成供应商筛选按钮
+        // 生成供应商筛选按钮（重建后恢复已选中状态）
         const providers = [...new Set(data.map(d => d.provider))];
         filtersEl.innerHTML = providers.map(p =>
-            `<button class="filter-btn" data-provider="${p}">${p}</button>`
+            `<button class="filter-btn${p === activeProvider ? " active" : ""}" data-provider="${p}">${p}</button>`
         ).join("");
         filtersEl.querySelectorAll(".filter-btn").forEach(btn => {
             btn.addEventListener("click", () => {
@@ -106,7 +106,11 @@
         try {
             await fetch("/api/refresh", { method: "POST" });
             await load();
-            const resp = await fetch("/api/export");
+            const exportParams = new URLSearchParams();
+            if (activeProvider) exportParams.set("provider", activeProvider);
+            if (activePlatform) exportParams.set("platform", activePlatform);
+            const exportQuery = exportParams.toString();
+            const resp = await fetch("/api/export" + (exportQuery ? "?" + exportQuery : ""));
             const blob = await resp.blob();
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");

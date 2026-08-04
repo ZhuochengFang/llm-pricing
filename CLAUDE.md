@@ -156,3 +156,42 @@ docker compose exec app env | grep -i proxy
 # 查看最近的刷新日志
 docker compose logs --tail=50 app | grep -iE "yunwu|error|fail"
 ```
+
+### 外部机器访问本机 8000 端口（WSL2 环境）
+
+服务跑在 WSL2 内部网络，外部机器无法直接通过 Windows 主机 IP 访问，需要三步配置：
+
+**第 1 步：获取 WSL2 当前 IP（在 WSL2 内执行）**
+```bash
+ip addr show eth0 | grep 'inet '
+# 记下形如 172.28.x.x 的地址
+```
+
+**第 2 步：在 Windows 设置端口转发（管理员 PowerShell）**
+```powershell
+netsh interface portproxy add v4tov4 listenport=8000 listenaddress=0.0.0.0 connectport=8000 connectaddress=172.28.x.x
+```
+
+**第 3 步：在 Windows 防火墙放行 8000 端口（管理员 PowerShell）**
+```powershell
+netsh advfirewall firewall add rule name="WSL2 8000" dir=in action=allow protocol=TCP localport=8000
+```
+
+完成后外部机器可通过 `http://<Windows主机IP>:8000` 访问。
+
+注意：WSL2 重启后 IP 可能变化，需重新执行第 1、2 步更新转发规则。查看当前转发规则：`netsh interface portproxy show all`。删除规则：`netsh interface portproxy delete v4tov4 listenport=8000 listenaddress=0.0.0.0`。
+
+### 万界方舟平台 API 调研记录（2026-08-04）
+
+**平台信息：**
+- 官网：`fangzhou.wanjiedata.com`
+- API Base URL：`https://maas-openapi.wanjiedata.com/api`
+- API Key 位于：`~/.claude/settings.json` 的 `ANTHROPIC_AUTH_TOKEN` 字段
+
+**调研结论：无法像云雾 AI 那样获取定价数据。**
+
+测试结果：
+- `GET /api/v1/models`（带 API Key）：可正常返回模型列表，但每条记录只有 `id`、`object`、`created`、`owned_by`，**不含任何定价字段**
+- `GET /api/pricing`（带或不带 Key）：返回 404，该端点不存在
+
+万界方舟未暴露公开或私有的定价 API，平台定价信息只能通过网页端手动查看，无法程序化抓取集成。
