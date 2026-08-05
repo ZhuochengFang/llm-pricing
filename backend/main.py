@@ -218,9 +218,10 @@ app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 # ————— API 路由 —————
 
 @app.get("/api/prices")
-def prices(provider: Optional[str] = Query(None), platform: Optional[str] = Query(None)):
-    """获取当前所有模型定价，支持按供应商和平台筛选。"""
-    return get_prices(provider, platform)
+def prices(provider: Optional[str] = Query(None), platform: Optional[str] = Query(None),
+           model_type: Optional[str] = Query(None)):
+    """获取当前所有模型定价，支持按供应商、平台和模型类型筛选。"""
+    return get_prices(provider, platform, model_type)
 
 
 @app.get("/api/status")
@@ -237,19 +238,21 @@ async def manual_refresh():
 
 
 @app.get("/api/export")
-def export_excel(provider: Optional[str] = Query(None), platform: Optional[str] = Query(None)):
+def export_excel(provider: Optional[str] = Query(None), platform: Optional[str] = Query(None),
+                 model_type: Optional[str] = Query(None)):
     """导出当前定价数据为 Excel (.xlsx) 文件并返回下载流。"""
-    rows = get_prices(provider, platform)
+    rows = get_prices(provider, platform, model_type)
     wb = Workbook()
     ws = wb.active
     ws.title = "LLM Pricing"
-    headers = ["Platform", "Provider", "Model", "Input $/1M tokens", "Output $/1M tokens", "Context Window"]
+    headers = ["Platform", "Provider", "Model", "Type", "Input $/1M tokens", "Output $/1M tokens", "Context Window"]
     ws.append(headers)
     for col in range(1, len(headers) + 1):
         ws.cell(row=1, column=col).font = ws.cell(row=1, column=col).font.copy(bold=True)
     for r in rows:
         ctx = r["context_window"] if r["context_window"] else ""
-        ws.append([r["platform"], r["provider"], r["model"], r["input_price"], r["output_price"], ctx])
+        ws.append([r["platform"], r["provider"], r["model"], r.get("model_type", "text"),
+                   r["input_price"], r["output_price"], ctx])
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)

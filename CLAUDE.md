@@ -94,13 +94,47 @@ llm-pricing/
 | `history.html` | 历史页结构：返回链接、标题、Chart.js canvas 容器、状态栏。从 CDN 加载 Chart.js 4.4.1 |
 | `history.js` | 历史页逻辑。通过 URL slug 或查询参数确定模型，从 `/api/history` 加载数据。使用 Chart.js 绘制多平台折线图（OpenRouter 蓝/橙实线，Yunwu 绿/粉虚线），Y 轴格式 `$X.XX`。每 10 分钟自动刷新 |
 
+## 平台与供应商
+
+### 平台 (Platform)
+
+系统从以下两个平台获取实时价格数据，前端通过平台徽章区分来源：
+
+| 平台 | 标识 (key) | API 地址 | 价格说明 | 徽章颜色 | CSS 类 |
+|------|-----------|---------|---------|---------|--------|
+| OpenRouter | `openrouter` | `openrouter.ai/api/v1/models` | Token 价格 = 厂商原价（passthrough），但平台对充值收取 5.5% 手续费 | 紫色 #6e40c9 | `.badge-openrouter` |
+| 云雾 AI (Yunwu) | `yunwu` | `yunwu.ai/api/pricing` | 使用 one-api/new-api 体系的 `model_ratio` 换算，`ratio=1 ≈ $2/1M tokens` | 天蓝 #0ea5e9 | `.badge-yunwu` |
+
+平台显示顺序定义在 `pricing_data.py` 的 `_PLATFORM_ORDER`：OpenRouter (0) → Yunwu (1)。
+
+### 供应商 (Provider)
+
+每个供应商通过两套规则识别：OpenRouter 使用模型 ID 前缀（`price_fetcher.py` 的 `PROVIDER_MAP`），云雾使用模型名正则匹配（`yunwu_fetcher.py` 的 `PROVIDER_PATTERNS`）。
+
+| 供应商 | 排序 | OpenRouter 前缀 | 云雾正则匹配 | 徽章颜色 | CSS 类 |
+|-------|------|----------------|-------------|---------|--------|
+| OpenAI | 0 | `openai` | `^(gpt-\|o[1-9]-\|o[1-9]$\|chatgpt-)` | 绿色 #10a37f | `.badge-openai` |
+| Anthropic | 1 | `anthropic` | `^claude-` | 琥珀 #d97706 | `.badge-anthropic` |
+| Google | 2 | `google` | `^gemini-` | 蓝色 #4285f4 | `.badge-google` |
+| DeepSeek | 3 | `deepseek` | `^deepseek-` | 靛蓝 #6366f1 | `.badge-deepseek` |
+| Mistral | 4 | `mistralai`, `mistral` | `^(mistral-\|codestral\|pixtral\|ministral)` | 橙色 #f97316 | `.badge-mistral` |
+| Meta | 5 | `meta-llama`, `meta` | `^(llama-\|meta-)` | 蓝色 #0668e1 | `.badge-meta` |
+| Qwen (阿里巴巴) | 6 | `qwen` | `^qwen` | 紫色 #615ced | `.badge-qwen` |
+| Grok (xAI) | 7 | `x-ai` | `^grok-` | 红色 #ef4444 | `.badge-grok` |
+| MiniMax | 8 | `minimax` | `^(minimax-\|abab-)` | 青绿 #14b8a6 | `.badge-minimax` |
+| ByteDance (字节跳动) | 9 | `bytedance`, `bytedance-seed` | `^(doubao-\|Doubao-)` | 青蓝 #06b6d4 | `.badge-bytedance` |
+| Jimeng (即梦) | 10 | — | `^jimeng-` | 玫红 #f43f5e | `.badge-jimeng` |
+| Zhipu (智谱) | 11 | `z-ai` | `^(glm-\|chatglm-)` | 紫罗兰 #8b5cf6 | `.badge-zhipu` |
+
+供应商排序顺序定义在 `pricing_data.py` 的 `_PROVIDER_ORDER`，前端徽章颜色映射在 `script.js` 的 `COLORS` 对象和 `style.css` 的 `.badge-*` 类中。新增供应商需同时修改以上 5 个文件（`price_fetcher.py`、`yunwu_fetcher.py`、`pricing_data.py`、`script.js`、`style.css`）。
+
 ## 关键细节
 
 - 项目无测试套件
 - 当前价格保存在 `pricing_data.py` 的模块级全局变量中，用于快速读取
 - 价格历史存储在 PostgreSQL 的 `price_history` 表中，7 天保留窗口
 - 根目录的 `index.html` 与本项目无关（似乎是一个缓存的 Google 页面）
-- 支持的供应商：OpenAI、Anthropic、Google、DeepSeek、Mistral、Meta、Qwen
+- 支持的供应商：OpenAI、Anthropic、Google、DeepSeek、Mistral、Meta、Qwen、Grok、MiniMax、ByteDance、Jimeng、Zhipu（详见上方「平台与供应商」章节）
 - 支持的平台：OpenRouter、云雾 AI (Yunwu)
 - 刷新日志写入 `data/refresh.log`，通过 `[SCHEDULED]`、`[MANUAL]`、`[STARTUP]` 标签区分触发来源
 - 模型排序规则：供应商（固定顺序）→ 模型系列名称 → 版本号（升序）→ 变体名 → 平台（OpenRouter 优先）

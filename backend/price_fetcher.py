@@ -26,7 +26,22 @@ PROVIDER_MAP = {
     "meta-llama": "Meta",
     "meta": "Meta",
     "qwen": "Qwen",
+    "x-ai": "Grok",
+    "minimax": "MiniMax",
+    "bytedance": "ByteDance",
+    "bytedance-seed": "ByteDance",
+    "z-ai": "Zhipu",
 }
+
+
+def _detect_model_type(entry: dict) -> str:
+    """根据 architecture.output_modalities 判断模型类型。"""
+    out_mods = entry.get("architecture", {}).get("output_modalities", [])
+    if "image" in out_mods:
+        return "image"
+    if "audio" in out_mods:
+        return "video"
+    return "text"
 
 
 def _parse_model(entry: dict) -> dict | None:
@@ -68,6 +83,7 @@ def _parse_model(entry: dict) -> dict | None:
         "input_price": round(input_per_million, 2),
         "output_price": round(output_per_million, 2),
         "context_window": context_window,
+        "model_type": _detect_model_type(entry),
     }
 
 

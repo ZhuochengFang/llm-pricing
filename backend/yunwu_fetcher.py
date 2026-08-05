@@ -26,6 +26,11 @@ PROVIDER_PATTERNS = [
     (re.compile(r"^(mistral-|codestral|pixtral|ministral)"), "Mistral"),
     (re.compile(r"^(llama-|meta-)"), "Meta"),
     (re.compile(r"^qwen"), "Qwen"),
+    (re.compile(r"^grok-"), "Grok"),
+    (re.compile(r"^(minimax-|abab-)"), "MiniMax"),
+    (re.compile(r"^(doubao-|Doubao-)"), "ByteDance"),
+    (re.compile(r"^jimeng-"), "Jimeng"),
+    (re.compile(r"^(glm-|chatglm-)"), "Zhipu"),
 ]
 
 # one-api/new-api 体系中 model_ratio=1 约等于 $2/1M 输入 tokens
@@ -40,14 +45,22 @@ def _detect_provider(model_name: str) -> str | None:
     return None
 
 
+_TYPE_MAP = {
+    "chat": "text", "text": "text", "文本": "text",
+    "图像": "image",
+    "音视频": "video",
+}
+
+
 def _parse_model(entry: dict) -> dict | None:
-    """解析单个云雾模型条目：过滤不可用/非文本模型，根据 quota_type 计算价格。"""
+    """解析单个云雾模型条目：过滤不可用模型，根据 quota_type 计算价格。"""
     model_name = entry.get("model_name", "")
     if not model_name or not entry.get("available", False):
         return None
 
-    model_type = entry.get("model_type", "")
-    if model_type not in ("chat", "text", "文本"):
+    raw_type = entry.get("model_type", "")
+    model_type = _TYPE_MAP.get(raw_type)
+    if not model_type:
         return None
 
     provider = _detect_provider(model_name)
@@ -76,6 +89,7 @@ def _parse_model(entry: dict) -> dict | None:
         "input_price": input_price,
         "output_price": output_price,
         "context_window": 0,
+        "model_type": model_type,
     }
 
 
