@@ -229,3 +229,7 @@ netsh advfirewall firewall add rule name="WSL2 8000" dir=in action=allow protoco
 - `GET /api/pricing`（带或不带 Key）：返回 404，该端点不存在
 
 万界方舟未暴露公开或私有的定价 API，平台定价信息只能通过网页端手动查看，无法程序化抓取集成。
+
+### 部分图像和视频模型定价方式不清晰
+
+从两个视频平台上传回的部分图像和视频模型定价方式不明确，其price相关标签为0，所以在价格后存在标签“仅供参考”

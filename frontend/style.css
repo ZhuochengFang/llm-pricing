@@ -275,6 +275,7 @@ tr:last-child td { border-bottom: none; }
 .badge-zhipu { background: linear-gradient(135deg, #7c3aed, #8b5cf6); }
 
 /* Platform badges */
+.badge-official { background: linear-gradient(135deg, #047857, #059669); }
 .badge-openrouter { background: linear-gradient(135deg, #5b32a8, #6e40c9); }
 .badge-yunwu { background: linear-gradient(135deg, #0284c7, #0ea5e9); }
 

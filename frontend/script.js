@@ -10,6 +10,7 @@
     };
 
     const PLATFORM_LABELS = {
+        official: "Official 厂商原价",
         openrouter: "OpenRouter",
         yunwu: "Yunwu 云雾"
     };
@@ -143,9 +144,15 @@
         data = (await pricesRes.json()).map((d, i) => ({ ...d, _idx: i }));
 
         if (data.length) {
+            const ofItems = data.filter(d => d.platform === "official");
             const orItems = data.filter(d => d.platform === "openrouter");
             const ywItems = data.filter(d => d.platform === "yunwu");
             let parts = [];
+            if (ofItems.length && ofItems[0].updated_at) {
+                const src = ofItems[0].source || "none";
+                const cls = src === "live" ? "source-live" : "source-static";
+                parts.push(`Official: ${new Date(ofItems[0].updated_at).toLocaleString()} <span class="source-badge ${cls}">${src}</span>`);
+            }
             if (orItems.length) {
                 const src = orItems[0].source || "static";
                 const cls = src === "live" ? "source-live" : "source-static";
@@ -224,7 +231,12 @@
         const rows = filtered();
         tbody.innerHTML = rows.map(m => {
             const provCls = COLORS[m.provider] || "openai";
-            const platCls = m.platform === "yunwu" ? "badge-yunwu" : "badge-openrouter";
+            const PLATFORM_BADGE = {
+                official: "badge-official",
+                openrouter: "badge-openrouter",
+                yunwu: "badge-yunwu"
+            };
+            const platCls = PLATFORM_BADGE[m.platform] || "badge-openrouter";
             const platLabel = PLATFORM_LABELS[m.platform] || m.platform;
             const mtype = m.model_type || "text";
             const typeLabel = TYPE_LABELS[mtype] || mtype;

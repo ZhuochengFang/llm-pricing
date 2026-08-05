@@ -8,7 +8,7 @@
  * - 每 10 分钟自动刷新图表
  */
 (function () {
-    const PLATFORM_LABELS = { openrouter: "OpenRouter", yunwu: "Yunwu" };
+    const PLATFORM_LABELS = { official: "Official", openrouter: "OpenRouter", yunwu: "Yunwu" };
     const titleEl = document.getElementById("model-title");
     const statusEl = document.getElementById("status");
     const canvas = document.getElementById("history-chart");
@@ -82,8 +82,9 @@
 
         // 每个平台的线条颜色：输入价格 / 输出价格
         const COLORS = {
-            openrouter: { input: "#58a6ff", output: "#f97316" },
-            yunwu:      { input: "#34d399", output: "#f472b6" },
+            official:   { input: "#22c55e", output: "#eab308" },
+            openrouter: { input: "#3b82f6", output: "#ef4444" },
+            yunwu:      { input: "#a855f7", output: "#06b6d4" },
         };
         const datasets = [];
 
