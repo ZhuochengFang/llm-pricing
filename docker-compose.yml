@@ -21,6 +21,7 @@ services:
     environment:
       DATABASE_URL: "postgresql://llmpricing:llmpricing@db:5432/llmpricing"
       YUNWU_PROXY: "http://host.docker.internal:7890"
+      LITELLM_PROXY: "http://host.docker.internal:7890"
       #HTTPS_PROXY: "http://host.docker.internal:7890"
       #HTTP_PROXY: "http://host.docker.internal:7890"
       #NO_PROXY: "localhost,127.0.0.1,db"
