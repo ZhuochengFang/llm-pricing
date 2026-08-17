@@ -27,6 +27,8 @@
     let activeProvider = null;
     let activePlatform = null;
     let activeType = null;
+    let currentPage = 1;
+    const pageSize = 50;
 
     const tbody = document.getElementById("table-body");
     const search = document.getElementById("search");
@@ -36,6 +38,8 @@
     const updatedEl = document.getElementById("updated");
     const refreshBtn = document.getElementById("refresh-btn");
     const resetProviderBtn = document.getElementById("reset-provider");
+    const paginationInfo = document.getElementById("pagination-info");
+    const paginationControls = document.getElementById("pagination-controls");
 
     tbody.addEventListener("click", (event) => {
         const row = event.target.closest("tr[data-slug]");
@@ -119,6 +123,7 @@
             if (!btn || btn.classList.contains("fbtn-disabled")) return;
             const val = btn.dataset.value || null;
             setActive(val === getActive() ? null : val);
+            currentPage = 1;
             rebuildFilters();
             render();
         });
@@ -135,6 +140,7 @@
         activeProvider = null;
         activePlatform = null;
         activeType = null;
+        currentPage = 1;
         rebuildFilters();
         render();
     });
@@ -228,7 +234,13 @@
     }
 
     function render() {
-        const rows = filtered();
+        const allRows = filtered();
+        const total = allRows.length;
+        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        if (currentPage > totalPages) currentPage = totalPages;
+        const start = (currentPage - 1) * pageSize;
+        const rows = allRows.slice(start, start + pageSize);
+
         tbody.innerHTML = rows.map(m => {
             const provCls = COLORS[m.provider] || "openai";
             const PLATFORM_BADGE = {
@@ -253,7 +265,53 @@
                 <td>${fmtCtx(m.context_window)}</td>
             </tr>`;
         }).join("");
+
+        renderPagination(total, totalPages);
     }
+
+    function renderPagination(total, totalPages) {
+        const start = (currentPage - 1) * pageSize + 1;
+        const end = Math.min(currentPage * pageSize, total);
+        paginationInfo.textContent = total === 0
+            ? "无匹配结果"
+            : `显示 ${start}–${end} 条，共 ${total} 条`;
+
+        if (totalPages <= 1) {
+            paginationControls.innerHTML = "";
+            return;
+        }
+
+        const pages = [];
+        pages.push(1);
+        let lo = Math.max(2, currentPage - 2);
+        let hi = Math.min(totalPages - 1, currentPage + 2);
+        if (lo > 2) pages.push("...");
+        for (let i = lo; i <= hi; i++) pages.push(i);
+        if (hi < totalPages - 1) pages.push("...");
+        if (totalPages > 1) pages.push(totalPages);
+
+        let html = `<button class="pg-btn" data-pg="prev" ${currentPage === 1 ? "disabled" : ""}>‹</button>`;
+        for (const p of pages) {
+            if (p === "...") {
+                html += `<span class="pg-ellipsis">…</span>`;
+            } else {
+                html += `<button class="pg-btn${p === currentPage ? " pg-active" : ""}" data-pg="${p}">${p}</button>`;
+            }
+        }
+        html += `<button class="pg-btn" data-pg="next" ${currentPage === totalPages ? "disabled" : ""}>›</button>`;
+        paginationControls.innerHTML = html;
+    }
+
+    paginationControls.addEventListener("click", (e) => {
+        const btn = e.target.closest(".pg-btn");
+        if (!btn || btn.disabled) return;
+        const v = btn.dataset.pg;
+        if (v === "prev") currentPage--;
+        else if (v === "next") currentPage++;
+        else currentPage = parseInt(v);
+        render();
+        document.querySelector(".table-wrap").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
 
     document.querySelectorAll("th[data-sort]").forEach(th => {
         th.addEventListener("click", () => {
@@ -269,13 +327,17 @@
                 sortKey = key;
                 sortDir = "asc";
             }
+            currentPage = 1;
             document.querySelectorAll("th").forEach(t => t.classList.remove("asc", "desc"));
             if (sortKey) th.classList.add(sortDir);
             render();
         });
     });
 
-    search.addEventListener("input", render);
+    search.addEventListener("input", () => {
+        currentPage = 1;
+        render();
+    });
     load();
     setInterval(load, 10 * 60 * 1000);
 })();

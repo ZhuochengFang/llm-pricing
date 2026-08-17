@@ -311,6 +311,68 @@ tr:last-child td { border-bottom: none; }
     padding: 0 0.5rem;
 }
 
+/* ——— Pagination ——— */
+.pagination-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    margin-top: 0.75rem;
+    background: rgba(30, 41, 59, 0.55);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    border: 1px solid rgba(59, 130, 246, 0.1);
+    border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.06);
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.pagination-info {
+    font-size: 0.8rem;
+    color: #64748b;
+    white-space: nowrap;
+}
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.pg-btn {
+    min-width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid rgba(59, 130, 246, 0.12);
+    background: rgba(15, 23, 42, 0.5);
+    color: #94a3b8;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.pg-btn:hover:not(:disabled) {
+    border-color: rgba(59, 130, 246, 0.35);
+    color: #e2e8f0;
+    background: rgba(59, 130, 246, 0.08);
+}
+.pg-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+.pg-active {
+    background: rgba(59, 130, 246, 0.2) !important;
+    border-color: rgba(59, 130, 246, 0.4) !important;
+    color: #60a5fa !important;
+    font-weight: 700;
+}
+.pg-ellipsis {
+    color: #475569;
+    font-size: 0.82rem;
+    padding: 0 4px;
+}
+
 /* ——— Refresh Button ——— */
 .refresh-btn {
     padding: 0.45rem 1.2rem;
