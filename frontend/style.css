@@ -203,7 +203,8 @@ h2 {
 
 /* ——— Table ——— */
 .table-wrap {
-    overflow-x: auto;
+    overflow: auto;
+    max-height: calc(8 * 2.6rem + 2.4rem);
     border-radius: 14px;
     background: rgba(30, 41, 59, 0.55);
     backdrop-filter: blur(16px) saturate(1.2);
@@ -211,6 +212,14 @@ h2 {
     border: 1px solid rgba(59, 130, 246, 0.1);
     box-shadow: 0 2px 12px rgba(59, 130, 246, 0.06);
 }
+.table-wrap::-webkit-scrollbar { width: 6px; }
+.table-wrap::-webkit-scrollbar-track { background: transparent; }
+.table-wrap::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.35);
+    border-radius: 3px;
+}
+.table-wrap::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.55); }
+.table-wrap { scrollbar-width: thin; scrollbar-color: rgba(100,116,139,0.35) transparent; }
 
 table {
     width: 100%;

@@ -10,7 +10,7 @@
     };
 
     const PLATFORM_LABELS = {
-        official: "Official 厂商原价",
+        official: "官方价",
         openrouter: "OpenRouter",
         yunwu: "Yunwu 云雾"
     };
