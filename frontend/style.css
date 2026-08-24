@@ -282,11 +282,14 @@ tr:last-child td { border-bottom: none; }
 .badge-bytedance { background: linear-gradient(135deg, #0891b2, #06b6d4); }
 .badge-jimeng { background: linear-gradient(135deg, #e11d48, #f43f5e); }
 .badge-zhipu { background: linear-gradient(135deg, #7c3aed, #8b5cf6); }
+.badge-moonshot { background: linear-gradient(135deg, #1e3a5f, #2563eb); }
+.badge-kuaishou { background: linear-gradient(135deg, #d97706, #f59e0b); }
 
 /* Platform badges */
 .badge-official { background: linear-gradient(135deg, #047857, #059669); }
 .badge-openrouter { background: linear-gradient(135deg, #5b32a8, #6e40c9); }
 .badge-yunwu { background: linear-gradient(135deg, #0284c7, #0ea5e9); }
+.badge-moyu { background: linear-gradient(135deg, #ea580c, #f97316); }
 
 /* Type badges */
 .badge-type-text { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.2); }

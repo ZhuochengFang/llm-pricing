@@ -20,10 +20,11 @@ _PROVIDER_ORDER = {
     "OpenAI": 0, "Anthropic": 1, "Google": 2, "DeepSeek": 3,
     "Mistral": 4, "Meta": 5, "Qwen": 6, "Grok": 7,
     "MiniMax": 8, "ByteDance": 9, "Jimeng": 10, "Zhipu": 11,
+    "Moonshot": 12, "Kuaishou": 13,
 }
 
 # 平台显示顺序
-_PLATFORM_ORDER = {"official": 0, "openrouter": 1, "yunwu": 2}
+_PLATFORM_ORDER = {"official": 0, "openrouter": 1, "yunwu": 2, "moyu": 3}
 
 # 从模型名中提取版本号的正则：前缀 + 数字版本 + 可选后缀
 _version_split_re = re.compile(r"^(.*?[-.]?)(\d+(?:\.\d+)*)([-.].*)?$")
@@ -112,18 +113,21 @@ PRICING_DATA = [
     {"provider": "Qwen", "model": "qwen3.6-flash", "input_price": 0.19, "output_price": 1.13, "context_window": 1000000, "model_type": "text"},
 ]
 
-PLATFORMS = ("official", "openrouter", "yunwu")
+PLATFORMS = ("official", "openrouter", "yunwu", "moyu")
 
 # ————— 模块级可变状态 —————
 _live_data: list[dict] = []          # OpenRouter 实时数据
 _yunwu_data: list[dict] = []         # 云雾平台实时数据
 _litellm_data: list[dict] = []      # LiteLLM 官方定价数据
+_moyu_data: list[dict] = []         # 魔芋平台实时数据
 _updated_at: str = datetime.now(timezone.utc).isoformat()   # OpenRouter 最近更新时间
 _yunwu_updated_at: str = ""          # 云雾平台最近更新时间
 _litellm_updated_at: str = ""       # LiteLLM 最近更新时间
+_moyu_updated_at: str = ""          # 魔芋平台最近更新时间
 _source: str = "static"             # OpenRouter 数据来源：static / live
 _yunwu_source: str = "none"         # 云雾数据来源：none / live
 _litellm_source: str = "none"       # LiteLLM 数据来源：none / live
+_moyu_source: str = "none"          # 魔芋数据来源：none / live
 _alias_map: dict[tuple[str, str], dict[str, str]] = {}  # 跨平台模型别名映射
 
 _slug_re = re.compile(r"[^a-z0-9]+")
@@ -160,7 +164,7 @@ def _build_slug_index(data: list[dict]) -> dict[tuple[str, str], str]:
 def _rebuild_alias_map() -> None:
     global _alias_map
     or_data = _live_data if _live_data else PRICING_DATA
-    _alias_map = build_alias_map(or_data, _yunwu_data, _litellm_data)
+    _alias_map = build_alias_map(or_data, _yunwu_data, _litellm_data, _moyu_data)
 
 
 def update_prices(new_data: list[dict]) -> None:
@@ -193,6 +197,16 @@ def update_litellm_prices(new_data: list[dict]) -> None:
     _rebuild_alias_map()
 
 
+def update_moyu_prices(new_data: list[dict]) -> None:
+    """更新魔芋平台实时数据并重建跨平台别名映射。"""
+    global _moyu_data, _moyu_updated_at, _moyu_source
+    _moyu_data = new_data
+    now = datetime.now(timezone.utc)
+    _moyu_updated_at = now.isoformat()
+    _moyu_source = "live"
+    _rebuild_alias_map()
+
+
 def get_prices(provider: Optional[str] = None, platform: Optional[str] = None,
                model_type: Optional[str] = None, model: Optional[str] = None) -> list[dict]:
     """合并所有平台数据，按排序规则排列，附加 slug 和元数据后返回。"""
@@ -200,7 +214,8 @@ def get_prices(provider: Optional[str] = None, platform: Optional[str] = None,
     or_entries = [{"platform": "openrouter", **e} for e in or_data]
     yw_entries = [{"platform": "yunwu", **e} for e in _yunwu_data]
     lt_entries = [{"platform": "official", **e} for e in _litellm_data]
-    all_data = or_entries + yw_entries + lt_entries
+    my_entries = [{"platform": "moyu", **e} for e in _moyu_data]
+    all_data = or_entries + yw_entries + lt_entries + my_entries
 
     if provider:
         all_data = [m for m in all_data if m["provider"].lower() == provider.lower()]
@@ -223,6 +238,8 @@ def get_prices(provider: Optional[str] = None, platform: Optional[str] = None,
             updated_at, source = _updated_at, _source
         elif p == "yunwu":
             updated_at, source = _yunwu_updated_at, _yunwu_source
+        elif p == "moyu":
+            updated_at, source = _moyu_updated_at, _moyu_source
         else:
             updated_at, source = _litellm_updated_at, _litellm_source
         result.append(
@@ -240,6 +257,7 @@ def get_status() -> dict:
     or_count = len(_live_data) if _live_data else len(PRICING_DATA)
     yw_count = len(_yunwu_data)
     lt_count = len(_litellm_data)
+    my_count = len(_moyu_data)
     return {
         "source": _source,
         "updated_at": _updated_at,
@@ -250,6 +268,9 @@ def get_status() -> dict:
         "litellm_source": _litellm_source,
         "litellm_updated_at": _litellm_updated_at,
         "litellm_model_count": lt_count,
+        "moyu_source": _moyu_source,
+        "moyu_updated_at": _moyu_updated_at,
+        "moyu_model_count": my_count,
     }
 
 
@@ -262,7 +283,7 @@ async def get_history(provider: str, model: str, platform: Optional[str] = None)
 
     target_canon = _canonical(provider, model)
     all_models = {model}
-    for entry in (_live_data if _live_data else PRICING_DATA) + _yunwu_data + _litellm_data:
+    for entry in (_live_data if _live_data else PRICING_DATA) + _yunwu_data + _litellm_data + _moyu_data:
         if entry["provider"] == provider and _canonical(provider, entry["model"]) == target_canon:
             all_models.add(entry["model"])
 
@@ -289,7 +310,7 @@ async def get_history(provider: str, model: str, platform: Optional[str] = None)
 
 async def get_history_by_slug(slug: str) -> dict | None:
     """通过 URL slug 反查供应商和模型名，再获取价格历史。"""
-    all_data = (_live_data if _live_data else PRICING_DATA) + _yunwu_data + _litellm_data
+    all_data = (_live_data if _live_data else PRICING_DATA) + _yunwu_data + _litellm_data + _moyu_data
     slug_index = _build_slug_index(all_data)
     slug_map = {value: key for key, value in slug_index.items()}
     match = slug_map.get(slug)

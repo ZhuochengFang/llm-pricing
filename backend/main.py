@@ -26,12 +26,13 @@ from openpyxl import Workbook
 
 from pricing_data import (
     get_history, get_history_by_slug, get_prices, get_status,
-    update_prices, update_yunwu_prices, update_litellm_prices, PRICING_DATA,
+    update_prices, update_yunwu_prices, update_litellm_prices, update_moyu_prices, PRICING_DATA,
 )
 import pricing_data
 from price_fetcher import fetch_prices
 from yunwu_fetcher import fetch_yunwu_prices
 from litellm_fetcher import fetch_litellm_prices
+from moyu_fetcher import fetch_moyu_prices
 from csv_exporter import export_daily_csv, cleanup_old_csv
 from database import init_pool, close_pool, insert_history_batch, cleanup_old_history
 
@@ -144,18 +145,38 @@ async def refresh_litellm_prices():
         return False, 0
 
 
+async def refresh_moyu_prices():
+    """从魔芋平台拉取最新价格，更新内存数据并写入数据库历史。"""
+    models = await fetch_moyu_prices()
+    if models:
+        try:
+            update_moyu_prices(models)
+        except Exception as e:
+            logger.exception("update_moyu_prices failed: %s", e)
+            raise RuntimeError(f"update_moyu_prices failed: {e}") from e
+        now = datetime.now(timezone.utc)
+        await insert_history_batch("moyu", models, now)
+        logger.info("Moyu prices updated: %d models", len(models))
+        return True, len(models)
+    else:
+        logger.warning("Moyu refresh returned no data")
+        return False, 0
+
+
 async def refresh_all(source: str = _SOURCE_SCHEDULED):
     """并发刷新所有平台的价格，将结果写入日志。"""
     results = await asyncio.gather(
         refresh_prices(),
         refresh_yunwu_prices(),
         refresh_litellm_prices(),
+        refresh_moyu_prices(),
         return_exceptions=True,
     )
 
     or_result = results[0]
     yw_result = results[1]
     lt_result = results[2]
+    my_result = results[3]
 
     if isinstance(or_result, Exception):
         _write_refresh_log(False, 0, str(or_result), source=source, platform="openrouter",
@@ -183,6 +204,15 @@ async def refresh_all(source: str = _SOURCE_SCHEDULED):
         _write_refresh_log(lt_ok, lt_count,
                            "No data returned from LiteLLM" if not lt_ok else "",
                            source=source, platform="official")
+
+    if isinstance(my_result, Exception):
+        _write_refresh_log(False, 0, str(my_result), source=source, platform="moyu",
+                           exception=my_result)
+    else:
+        my_ok, my_count = my_result
+        _write_refresh_log(my_ok, my_count,
+                           "No data returned from Moyu" if not my_ok else "",
+                           source=source, platform="moyu")
 
 
 async def scheduled_refresh():

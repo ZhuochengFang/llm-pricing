@@ -28,5 +28,11 @@
       "Bash(python -c \"from csv_exporter import export_daily_csv, cleanup_old_csv; print\\('imports ok'\\)\")",
       "WebFetch(domain:wanjiedata.com)"
     ]
+  },
+  "API_KEY": "sk-jN6RjQJcHbyWvgG2trutB6tqjlzx35J7ZmDIu34iv8xkieH8",
+  "AUTH": {
+        "USERNAME": "admin",
+        "PASSWORD": "test@123"
   }
 }
+

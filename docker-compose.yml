@@ -22,6 +22,10 @@ services:
       DATABASE_URL: "postgresql://llmpricing:llmpricing@db:5432/llmpricing"
       YUNWU_PROXY: "http://host.docker.internal:7890"
       LITELLM_PROXY: "http://host.docker.internal:7890"
+      MOYU_PROXY: ""
+      MOYU_API_URL: "http://host.docker.internal:18090"
+      MOYU_USERNAME: "admin"
+      MOYU_PASSWORD: "test@123"
       LLM_PRICING_API_KEY: WHSDKIBAWTYGE37KB8TDZO0I
       #HTTPS_PROXY: "http://host.docker.internal:7890"
       #HTTP_PROXY: "http://host.docker.internal:7890"

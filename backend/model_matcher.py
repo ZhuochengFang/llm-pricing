@@ -48,6 +48,7 @@ def _canonical(provider: str, model: str) -> str:
 def build_alias_map(
     or_models: list[dict], yw_models: list[dict],
     lt_models: list[dict] | None = None,
+    my_models: list[dict] | None = None,
 ) -> dict[tuple[str, str], dict[str, str]]:
     """
     构建跨平台模型别名映射。
@@ -74,6 +75,14 @@ def build_alias_map(
             prov = m["provider"]
             norm = _canonical(prov, m["model"])
             index.setdefault((prov, norm), {}).setdefault("official", []).append(
+                m["model"]
+            )
+
+    if my_models:
+        for m in my_models:
+            prov = m["provider"]
+            norm = _canonical(prov, m["model"])
+            index.setdefault((prov, norm), {}).setdefault("moyu", []).append(
                 m["model"]
             )
 

@@ -6,13 +6,15 @@
         OpenAI: "openai", Anthropic: "anthropic", DeepSeek: "deepseek",
         Google: "google", Mistral: "mistral", Meta: "meta", Qwen: "qwen",
         Grok: "grok", MiniMax: "minimax", ByteDance: "bytedance",
-        Jimeng: "jimeng", Zhipu: "zhipu"
+        Jimeng: "jimeng", Zhipu: "zhipu", Moonshot: "moonshot",
+        Kuaishou: "kuaishou"
     };
 
     const PLATFORM_LABELS = {
         official: "官方价",
         openrouter: "OpenRouter",
-        yunwu: "Yunwu 云雾"
+        yunwu: "Yunwu 云雾",
+        moyu: "魔芋 Moyu"
     };
 
     const TYPE_LABELS = {
@@ -153,6 +155,7 @@
             const ofItems = data.filter(d => d.platform === "official");
             const orItems = data.filter(d => d.platform === "openrouter");
             const ywItems = data.filter(d => d.platform === "yunwu");
+            const myItems = data.filter(d => d.platform === "moyu");
             let parts = [];
             if (ofItems.length && ofItems[0].updated_at) {
                 const src = ofItems[0].source || "none";
@@ -168,6 +171,11 @@
                 const src = ywItems[0].source || "none";
                 const cls = src === "live" ? "source-live" : "source-static";
                 parts.push(`Yunwu: ${new Date(ywItems[0].updated_at).toLocaleString()} <span class="source-badge ${cls}">${src}</span>`);
+            }
+            if (myItems.length && myItems[0].updated_at) {
+                const src = myItems[0].source || "none";
+                const cls = src === "live" ? "source-live" : "source-static";
+                parts.push(`Moyu: ${new Date(myItems[0].updated_at).toLocaleString()} <span class="source-badge ${cls}">${src}</span>`);
             }
             updatedEl.innerHTML = "Last updated — " + parts.join(" &nbsp;|&nbsp; ");
         }
@@ -246,7 +254,8 @@
             const PLATFORM_BADGE = {
                 official: "badge-official",
                 openrouter: "badge-openrouter",
-                yunwu: "badge-yunwu"
+                yunwu: "badge-yunwu",
+                moyu: "badge-moyu"
             };
             const platCls = PLATFORM_BADGE[m.platform] || "badge-openrouter";
             const platLabel = PLATFORM_LABELS[m.platform] || m.platform;
