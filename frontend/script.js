@@ -234,7 +234,7 @@
         return d;
     }
 
-    function fmt(n) { return "$" + n.toFixed(2); }
+    function fmt(n) { return "¥" + n.toFixed(2); }
     function fmtCtx(n) {
         if (!n) return "-";
         if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";

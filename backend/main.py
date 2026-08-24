@@ -305,7 +305,7 @@ def export_excel(provider: Optional[str] = Query(None), platform: Optional[str] 
     wb = Workbook()
     ws = wb.active
     ws.title = "LLM Pricing"
-    headers = ["Platform", "Provider", "Model", "Type", "Input $/1M tokens", "Output $/1M tokens", "Context Window"]
+    headers = ["Platform", "Provider", "Model", "Type", "Input ¥/1M tokens", "Output ¥/1M tokens", "Context Window"]
     ws.append(headers)
     for col in range(1, len(headers) + 1):
         ws.cell(row=1, column=col).font = ws.cell(row=1, column=col).font.copy(bold=True)

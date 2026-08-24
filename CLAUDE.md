@@ -38,7 +38,7 @@ llm-pricing/
 ├── backend/                   # 后端代码（FastAPI + Python 3.12）
 │   ├── main.py                # 应用入口：API 路由、生命周期管理、定时任务调度
 │   ├── pricing_data.py        # 内存数据存储：合并多平台数据、排序、slug 生成、历史查询
-│   ├── price_fetcher.py       # OpenRouter 价格抓取器：拉取 API 数据并归一化为 $/1M tokens
+│   ├── price_fetcher.py       # OpenRouter 价格抓取器：拉取 API 数据并归一化为 ¥/1M tokens
 │   ├── yunwu_fetcher.py       # 云雾 AI 价格抓取器：拉取云雾 API 并换算 model_ratio 为价格
 │   ├── moyu_fetcher.py        # 魔芋平台价格抓取器：登录认证后拉取 API 并换算 model_ratio 为价格
 │   ├── model_matcher.py       # 跨平台模型名匹配：将不同平台的同一模型归一化到规范名称
@@ -78,9 +78,9 @@ llm-pricing/
 |------|------|
 | `main.py` | FastAPI 应用入口。**API 路由**：`GET /api/prices`（价格列表）、`GET /api/status`（状态）、`POST /api/refresh`（手动刷新）、`GET /api/export`（Excel 下载）、`GET /api/history`（按参数查历史）、`GET /api/history/{slug}`（按 slug 查历史）。**生命周期**：启动时初始化数据库连接池、执行首次价格抓取；关闭时释放资源。**定时任务**：每日 CST 09:00–22:00 每小时刷新价格、00:05 导出 CSV、UTC 03:00 清理过期历史。将 `frontend/` 挂载为 `/static`，`index.html` 作为兜底路由 |
 | `pricing_data.py` | 内存数据存储中心。维护静态兜底数据 `PRICING_DATA`（22 个模型）和来自 OpenRouter / 云雾的实时数据。**核心功能**：`get_prices()` 合并多平台数据并按供应商→模型系列→版本号→变体→平台排序；通过 `_build_slug_index()` 为每个模型生成 URL slug；通过 `model_matcher` 实现跨平台别名映射；`get_history()` / `get_history_by_slug()` 查询历史数据时自动合并所有别名 |
-| `price_fetcher.py` | OpenRouter 抓取器。从 `openrouter.ai/api/v1/models` 拉取数据，通过 `PROVIDER_MAP`（7 个供应商前缀）过滤已知厂商，跳过免费/nitro/floor 变体（含 `:` 的模型名），将 per-token 价格换算为 $/1M tokens |
-| `yunwu_fetcher.py` | 云雾 AI 抓取器。从 `yunwu.ai/api/pricing` 拉取数据，用正则 `PROVIDER_PATTERNS` 从模型名识别供应商。价格换算逻辑：`quota_type=0` 时使用 `model_ratio × BASE_RATE_PER_MILLION`（one-api 体系，ratio=1 ≈ $2/1M tokens）；`quota_type≠0` 时直接使用 `model_price` |
-| `moyu_fetcher.py` | 魔芋平台抓取器。从 `uat.moyu.info/api/pricing` 拉取数据，需先登录获取 token（环境变量 `MOYU_USERNAME`/`MOYU_PASSWORD`）。供应商优先通过 `vendor_id` 映射识别，回退到正则匹配。价格换算与云雾相同（one-api 体系）。模型名统一转小写存储 |
+| `price_fetcher.py` | OpenRouter 抓取器。从 `openrouter.ai/api/v1/models` 拉取数据，通过 `PROVIDER_MAP`（7 个供应商前缀）过滤已知厂商，跳过免费/nitro/floor 变体（含 `:` 的模型名），将 per-token 价格换算为 ¥/1M tokens（USD × 7.13） |
+| `yunwu_fetcher.py` | 云雾 AI 抓取器。从 `yunwu.ai/api/pricing` 拉取数据，用正则 `PROVIDER_PATTERNS` 从模型名识别供应商。价格换算逻辑：`quota_type=0` 时使用 `model_ratio × BASE_RATE_PER_MILLION`（one-api 体系，ratio=1 ≈ ¥14.26/1M tokens）；`quota_type≠0` 时直接使用 `model_price` |
+| `moyu_fetcher.py` | 魔芋平台抓取器。从 `uat.moyu.info/api/pricing` 拉取数据，需先登录获取 token（环境变量 `MOYU_USERNAME`/`MOYU_PASSWORD`）。供应商优先通过 `vendor_id` 映射识别，回退到正则匹配。**价格换算**：先从 `/api/status` 获取 `quota_per_unit`（魔芋设为 1,000,000），计算 `base_rate = 1M / quota_per_unit`（直接得到 ¥/M tokens）；`quota_type=0` 时 `price = model_ratio × base_rate`。模型名统一转小写存储 |
 | `model_matcher.py` | 跨平台模型名匹配。`MANUAL_ALIASES` 手动映射已知差异（如 `deepseek-reasoner` → `deepseek-r1`）。`normalize_model_name()` 自动处理：去除日期后缀、统一数字分隔符（`3-5` → `3.5`）、移除 `-instruct` 等变体标记。`build_alias_map()` 将各平台的模型按规范名分组，为同时出现在多个平台的模型建立多向映射 |
 | `database.py` | PostgreSQL 模块（asyncpg）。管理连接池（2-10 连接），自动创建 `price_history` 表（字段：platform、provider、model、input_price、output_price、recorded_at）及两个索引。`insert_history_batch()` 使用 COPY 协议批量写入。`query_history()` 查询最近 7 天数据（最多 1008 点）。`cleanup_old_history()` 删除过期记录 |
 | `csv_exporter.py` | 每日导出 `llm_prices_YYYY-MM-DD.csv` 到 `data/` 目录（已存在则跳过），并清理 7 天前的旧文件 |
@@ -94,7 +94,7 @@ llm-pricing/
 | `script.js` | 主页逻辑。从 `/api/prices` 加载数据，渲染可排序/可筛选的表格。默认使用后端排序（供应商→模型→版本→平台），点击列头可按该列排序（升序→降序→恢复默认）。点击行跳转到 `/{slug}` 历史页面。Refresh 按钮触发 `/api/refresh` 后自动下载 Excel。每 10 分钟自动刷新 |
 | `style.css` | 暗色主题样式。供应商徽章颜色（OpenAI 绿、Anthropic 琥珀、DeepSeek 靛蓝、Google 蓝、Mistral 橙、Meta 蓝、Qwen 紫等）。平台徽章（OpenRouter 紫、Yunwu 天蓝、Moyu 橙红）。数据来源标记（live 绿、static 灰）。响应式断点 600px |
 | `history.html` | 历史页结构：返回链接、标题、Chart.js canvas 容器、状态栏。从 CDN 加载 Chart.js 4.4.1 |
-| `history.js` | 历史页逻辑。通过 URL slug 或查询参数确定模型，从 `/api/history` 加载数据。使用 Chart.js 绘制多平台折线图（OpenRouter 蓝/橙实线，Yunwu 绿/粉虚线），Y 轴格式 `$X.XX`。每 10 分钟自动刷新 |
+| `history.js` | 历史页逻辑。通过 URL slug 或查询参数确定模型，从 `/api/history` 加载数据。使用 Chart.js 绘制多平台折线图（OpenRouter 蓝/橙实线，Yunwu 绿/粉虚线），Y 轴格式 `¥X.XX`。每 10 分钟自动刷新 |
 
 ## 平台与供应商
 
@@ -105,8 +105,8 @@ llm-pricing/
 | 平台 | 标识 (key) | API 地址 | 价格说明 | 徽章颜色 | CSS 类 |
 |------|-----------|---------|---------|---------|--------|
 | OpenRouter | `openrouter` | `openrouter.ai/api/v1/models` | Token 价格 = 厂商原价（passthrough），但平台对充值收取 5.5% 手续费 | 紫色 #6e40c9 | `.badge-openrouter` |
-| 云雾 AI (Yunwu) | `yunwu` | `yunwu.ai/api/pricing` | 使用 one-api/new-api 体系的 `model_ratio` 换算，`ratio=1 ≈ $2/1M tokens` | 天蓝 #0ea5e9 | `.badge-yunwu` |
-| 魔芋 (Moyu) | `moyu` | `uat.moyu.info/api/pricing` | 同云雾，one-api 体系 `model_ratio` 换算。需登录认证（`MOYU_USERNAME`/`MOYU_PASSWORD`） | 橙红 #f97316 | `.badge-moyu` |
+| 云雾 AI (Yunwu) | `yunwu` | `yunwu.ai/api/pricing` | 使用 one-api/new-api 体系的 `model_ratio` 换算，`ratio=1 ≈ ¥14.26/1M tokens`（$2 × 7.13） | 天蓝 #0ea5e9 | `.badge-yunwu` |
+| 魔芋 (Moyu) | `moyu` | `uat.moyu.info/api/pricing` | one-api 体系，`quota_per_unit=1,000,000`，价格直接以 ¥ 计算：`model_ratio × 1M/quota_per_unit` 得 ¥/M tokens。需登录认证（`MOYU_USERNAME`/`MOYU_PASSWORD`） | 橙红 #f97316 | `.badge-moyu` |
 
 平台显示顺序定义在 `pricing_data.py` 的 `_PLATFORM_ORDER`：Official (0) → OpenRouter (1) → Yunwu (2) → Moyu (3)。
 

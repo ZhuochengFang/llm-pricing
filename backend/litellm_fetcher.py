@@ -2,7 +2,7 @@
 LiteLLM 官方定价抓取器。
 
 从 LiteLLM 社区维护的定价数据库拉取各厂商官方 API 定价，
-作为 "Official" 平台数据源提供厂商直接定价参考。
+作为 "Official" 平台数据源提供厂商直接定价参考（¥/1M tokens）。
 """
 
 import os
@@ -19,6 +19,7 @@ LITELLM_URL = (
     "model_prices_and_context_window.json"
 )
 LITELLM_PROXY = os.environ.get("LITELLM_PROXY", "")
+USD_TO_CNY = 7.13
 
 PROVIDER_MAP = {
     "openai": "OpenAI",
@@ -84,8 +85,8 @@ def _parse_model(key: str, entry: dict) -> dict | None:
     return {
         "provider": provider,
         "model": model_name,
-        "input_price": round(float(input_cost) * 1_000_000, 2),
-        "output_price": round(float(output_cost) * 1_000_000, 2),
+        "input_price": round(float(input_cost) * 1_000_000 * USD_TO_CNY, 2),
+        "output_price": round(float(output_cost) * 1_000_000 * USD_TO_CNY, 2),
         "context_window": context_window,
         "model_type": model_type,
     }

@@ -1,7 +1,7 @@
 """
 魔芋平台 (moyu.info) 价格抓取器。
 
-与云雾类似，使用 one-api/new-api 体系的 model_ratio 换算价格。
+与云雾类似，使用 one-api/new-api 体系的 model_ratio 换算价格（¥/1M tokens）。
 区别：API 需要登录认证，供应商通过 vendor_id 映射识别。
 """
 
@@ -62,9 +62,9 @@ PROVIDER_PATTERNS = [
 
 _TYPE_MAP = {0: "text", 1: "text", 2: "image", 3: "video"}
 
-BASE_RATE_PER_MILLION = 2.0
 
 _cached_token: str | None = None
+_cached_quota_per_unit: int | None = None
 
 
 def _detect_provider_by_name(model_name: str) -> str | None:
@@ -100,7 +100,32 @@ async def _login(proxy: str | None) -> str | None:
         return None
 
 
-def _parse_model(entry: dict, vendor_map: dict[int, str]) -> dict | None:
+async def _fetch_quota_per_unit(proxy: str | None) -> int:
+    """从 /api/status 获取 quota_per_unit，用于计算正确的基准费率。"""
+    global _cached_quota_per_unit
+    if _cached_quota_per_unit is not None:
+        return _cached_quota_per_unit
+    try:
+        async with httpx.AsyncClient(timeout=15, proxy=proxy) as client:
+            resp = await client.get(f"{MOYU_API_URL}/api/status")
+            resp.raise_for_status()
+            data = resp.json().get("data", resp.json())
+            qpu = int(data.get("quota_per_unit", 500000))
+            if qpu > 0:
+                _cached_quota_per_unit = qpu
+                logger.info("Moyu quota_per_unit: %d", qpu)
+                return qpu
+    except Exception as e:
+        logger.warning("Failed to fetch Moyu quota_per_unit, using default 500000: %s", e)
+    _cached_quota_per_unit = 500000
+    return 500000
+
+
+def _calc_base_rate(quota_per_unit: int) -> float:
+    return 1_000_000 / quota_per_unit
+
+
+def _parse_model(entry: dict, vendor_map: dict[int, str], base_rate: float) -> dict | None:
     model_name = entry.get("model_name", "")
     if not model_name:
         return None
@@ -126,14 +151,14 @@ def _parse_model(entry: dict, vendor_map: dict[int, str]) -> dict | None:
     if quota_type == 0:
         if model_ratio <= 0:
             return None
-        input_price = round(model_ratio * BASE_RATE_PER_MILLION, 2)
-        output_price = round(model_ratio * completion_ratio * BASE_RATE_PER_MILLION, 2)
+        input_price = round(model_ratio * base_rate, 4)
+        output_price = round(model_ratio * completion_ratio * base_rate, 4)
     else:
         model_price = entry.get("model_price", 0)
         if model_price <= 0:
             return None
-        input_price = round(model_price, 2)
-        output_price = round(model_price * completion_ratio, 2)
+        input_price = round(model_price * base_rate, 4)
+        output_price = round(model_price * completion_ratio * base_rate, 4)
 
     return {
         "provider": provider,
@@ -157,6 +182,9 @@ async def fetch_moyu_prices() -> list[dict]:
             token = await _login(proxy)
             if not token:
                 return []
+
+        quota_per_unit = await _fetch_quota_per_unit(proxy)
+        base_rate = _calc_base_rate(quota_per_unit)
 
         async with httpx.AsyncClient(timeout=30, proxy=proxy) as client:
             headers = {"Authorization": f"Bearer {token}"}
@@ -185,7 +213,7 @@ async def fetch_moyu_prices() -> list[dict]:
         models = []
         seen = set()
         for entry in raw_data:
-            parsed = _parse_model(entry, vendor_map)
+            parsed = _parse_model(entry, vendor_map, base_rate)
             if parsed:
                 key = (parsed["provider"], parsed["model"])
                 if key not in seen:

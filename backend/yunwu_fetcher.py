@@ -2,7 +2,7 @@
 云雾 AI 平台 (yunwu.ai) 价格抓取器。
 
 从云雾 API 拉取模型定价数据，通过正则匹配识别供应商，
-将 one-api/new-api 体系的 model_ratio 换算为 $/1M tokens。
+将 one-api/new-api 体系的 model_ratio 换算为 ¥/1M tokens。
 """
 
 import os
@@ -33,8 +33,8 @@ PROVIDER_PATTERNS = [
     (re.compile(r"^(glm-|chatglm-)"), "Zhipu"),
 ]
 
-# one-api/new-api 体系中 model_ratio=1 约等于 $2/1M 输入 tokens
-BASE_RATE_PER_MILLION = 2.0
+# one-api/new-api 体系中 model_ratio=1 约等于 ¥14.26/1M 输入 tokens（$2 × 7.13）
+BASE_RATE_PER_MILLION = 14.26
 
 
 def _detect_provider(model_name: str) -> str | None:

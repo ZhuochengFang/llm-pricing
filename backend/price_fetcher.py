@@ -2,7 +2,7 @@
 OpenRouter 价格抓取器。
 
 从 OpenRouter API (openrouter.ai/api/v1/models) 拉取所有模型数据，
-通过 PROVIDER_MAP 过滤已知厂商，将价格归一化为 $/1M tokens。
+通过 PROVIDER_MAP 过滤已知厂商，将价格归一化为 ¥/1M tokens。
 """
 
 import time
@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 
 OPENROUTER_API = "https://openrouter.ai/api/v1/models"
+USD_TO_CNY = 7.13
 
 # OpenRouter 模型 ID 前缀 → 显示用供应商名
 PROVIDER_MAP = {
@@ -68,8 +69,8 @@ def _parse_model(entry: dict) -> dict | None:
         return None
 
     try:
-        input_per_million = float(prompt_price) * 1_000_000
-        output_per_million = float(completion_price) * 1_000_000
+        input_per_million = float(prompt_price) * 1_000_000 * USD_TO_CNY
+        output_per_million = float(completion_price) * 1_000_000 * USD_TO_CNY
     except (ValueError, TypeError):
         return None
 

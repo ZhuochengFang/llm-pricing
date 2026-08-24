@@ -75,42 +75,42 @@ def _sort_key(entry: dict) -> tuple:
     )
 
 
-# 静态兜底数据：当 API 抓取失败时使用
+# 静态兜底数据：当 API 抓取失败时使用（价格单位：¥/1M tokens）
 PRICING_DATA = [
     # OpenAI
-    {"provider": "OpenAI", "model": "gpt-4o", "input_price": 2.50, "output_price": 10.00, "context_window": 128000, "model_type": "text"},
-    {"provider": "OpenAI", "model": "gpt-4o-mini", "input_price": 0.15, "output_price": 0.60, "context_window": 128000, "model_type": "text"},
-    {"provider": "OpenAI", "model": "gpt-4-turbo", "input_price": 10.00, "output_price": 30.00, "context_window": 128000, "model_type": "text"},
-    {"provider": "OpenAI", "model": "o1", "input_price": 15.00, "output_price": 60.00, "context_window": 200000, "model_type": "text"},
-    {"provider": "OpenAI", "model": "o1-mini", "input_price": 3.00, "output_price": 12.00, "context_window": 128000, "model_type": "text"},
-    {"provider": "OpenAI", "model": "o3-mini", "input_price": 1.10, "output_price": 4.40, "context_window": 200000, "model_type": "text"},
+    {"provider": "OpenAI", "model": "gpt-4o", "input_price": 17.83, "output_price": 71.30, "context_window": 128000, "model_type": "text"},
+    {"provider": "OpenAI", "model": "gpt-4o-mini", "input_price": 1.07, "output_price": 4.28, "context_window": 128000, "model_type": "text"},
+    {"provider": "OpenAI", "model": "gpt-4-turbo", "input_price": 71.30, "output_price": 213.90, "context_window": 128000, "model_type": "text"},
+    {"provider": "OpenAI", "model": "o1", "input_price": 106.95, "output_price": 427.80, "context_window": 200000, "model_type": "text"},
+    {"provider": "OpenAI", "model": "o1-mini", "input_price": 21.39, "output_price": 85.56, "context_window": 128000, "model_type": "text"},
+    {"provider": "OpenAI", "model": "o3-mini", "input_price": 7.84, "output_price": 31.37, "context_window": 200000, "model_type": "text"},
     # Anthropic
-    {"provider": "Anthropic", "model": "claude-opus-4", "input_price": 15.00, "output_price": 75.00, "context_window": 200000, "model_type": "text"},
-    {"provider": "Anthropic", "model": "claude-sonnet-4", "input_price": 3.00, "output_price": 15.00, "context_window": 200000, "model_type": "text"},
-    {"provider": "Anthropic", "model": "claude-haiku-3.5", "input_price": 0.80, "output_price": 4.00, "context_window": 200000, "model_type": "text"},
+    {"provider": "Anthropic", "model": "claude-opus-4", "input_price": 106.95, "output_price": 534.75, "context_window": 200000, "model_type": "text"},
+    {"provider": "Anthropic", "model": "claude-sonnet-4", "input_price": 21.39, "output_price": 106.95, "context_window": 200000, "model_type": "text"},
+    {"provider": "Anthropic", "model": "claude-haiku-3.5", "input_price": 5.70, "output_price": 28.52, "context_window": 200000, "model_type": "text"},
     # DeepSeek
-    {"provider": "DeepSeek", "model": "deepseek-v3", "input_price": 0.27, "output_price": 1.10, "context_window": 128000, "model_type": "text"},
-    {"provider": "DeepSeek", "model": "deepseek-r1", "input_price": 0.55, "output_price": 2.19, "context_window": 128000, "model_type": "text"},
-    {"provider": "DeepSeek", "model": "deepseek-v4-pro", "input_price": 0.44, "output_price": 0.87, "context_window": 1048576, "model_type": "text"},
-    {"provider": "DeepSeek", "model": "deepseek-v4-flash", "input_price": 0.10, "output_price": 0.20, "context_window": 1048576, "model_type": "text"},
+    {"provider": "DeepSeek", "model": "deepseek-v3", "input_price": 1.93, "output_price": 7.84, "context_window": 128000, "model_type": "text"},
+    {"provider": "DeepSeek", "model": "deepseek-r1", "input_price": 3.92, "output_price": 15.61, "context_window": 128000, "model_type": "text"},
+    {"provider": "DeepSeek", "model": "deepseek-v4-pro", "input_price": 3.14, "output_price": 6.20, "context_window": 1048576, "model_type": "text"},
+    {"provider": "DeepSeek", "model": "deepseek-v4-flash", "input_price": 0.71, "output_price": 1.43, "context_window": 1048576, "model_type": "text"},
     # Google
-    {"provider": "Google", "model": "gemini-2.0-flash", "input_price": 0.10, "output_price": 0.40, "context_window": 1000000, "model_type": "text"},
-    {"provider": "Google", "model": "gemini-2.0-pro", "input_price": 1.25, "output_price": 10.00, "context_window": 2000000, "model_type": "text"},
-    {"provider": "Google", "model": "gemini-1.5-pro", "input_price": 1.25, "output_price": 5.00, "context_window": 2000000, "model_type": "text"},
+    {"provider": "Google", "model": "gemini-2.0-flash", "input_price": 0.71, "output_price": 2.85, "context_window": 1000000, "model_type": "text"},
+    {"provider": "Google", "model": "gemini-2.0-pro", "input_price": 8.91, "output_price": 71.30, "context_window": 2000000, "model_type": "text"},
+    {"provider": "Google", "model": "gemini-1.5-pro", "input_price": 8.91, "output_price": 35.65, "context_window": 2000000, "model_type": "text"},
     # Mistral
-    {"provider": "Mistral", "model": "mistral-large", "input_price": 2.00, "output_price": 6.00, "context_window": 128000, "model_type": "text"},
-    {"provider": "Mistral", "model": "mistral-small", "input_price": 0.10, "output_price": 0.30, "context_window": 128000, "model_type": "text"},
-    {"provider": "Mistral", "model": "codestral", "input_price": 0.30, "output_price": 0.90, "context_window": 256000, "model_type": "text"},
+    {"provider": "Mistral", "model": "mistral-large", "input_price": 14.26, "output_price": 42.78, "context_window": 128000, "model_type": "text"},
+    {"provider": "Mistral", "model": "mistral-small", "input_price": 0.71, "output_price": 2.14, "context_window": 128000, "model_type": "text"},
+    {"provider": "Mistral", "model": "codestral", "input_price": 2.14, "output_price": 6.42, "context_window": 256000, "model_type": "text"},
     # Meta (via cloud providers)
-    {"provider": "Meta", "model": "llama-3.3-70b", "input_price": 0.59, "output_price": 0.79, "context_window": 128000, "model_type": "text"},
-    {"provider": "Meta", "model": "llama-3.1-405b", "input_price": 3.00, "output_price": 3.00, "context_window": 128000, "model_type": "text"},
-    {"provider": "Meta", "model": "llama-3.1-8b", "input_price": 0.05, "output_price": 0.08, "context_window": 128000, "model_type": "text"},
+    {"provider": "Meta", "model": "llama-3.3-70b", "input_price": 4.21, "output_price": 5.63, "context_window": 128000, "model_type": "text"},
+    {"provider": "Meta", "model": "llama-3.1-405b", "input_price": 21.39, "output_price": 21.39, "context_window": 128000, "model_type": "text"},
+    {"provider": "Meta", "model": "llama-3.1-8b", "input_price": 0.36, "output_price": 0.57, "context_window": 128000, "model_type": "text"},
     # Qwen (千问)
-    {"provider": "Qwen", "model": "qwen3.7-max", "input_price": 1.48, "output_price": 4.43, "context_window": 1000000, "model_type": "text"},
-    {"provider": "Qwen", "model": "qwen3.7-plus", "input_price": 0.32, "output_price": 1.28, "context_window": 1000000, "model_type": "text"},
-    {"provider": "Qwen", "model": "qwen3.6-max-preview", "input_price": 1.04, "output_price": 6.24, "context_window": 262144, "model_type": "text"},
-    {"provider": "Qwen", "model": "qwen3.6-plus", "input_price": 0.33, "output_price": 1.95, "context_window": 1000000, "model_type": "text"},
-    {"provider": "Qwen", "model": "qwen3.6-flash", "input_price": 0.19, "output_price": 1.13, "context_window": 1000000, "model_type": "text"},
+    {"provider": "Qwen", "model": "qwen3.7-max", "input_price": 10.55, "output_price": 31.59, "context_window": 1000000, "model_type": "text"},
+    {"provider": "Qwen", "model": "qwen3.7-plus", "input_price": 2.28, "output_price": 9.13, "context_window": 1000000, "model_type": "text"},
+    {"provider": "Qwen", "model": "qwen3.6-max-preview", "input_price": 7.42, "output_price": 44.49, "context_window": 262144, "model_type": "text"},
+    {"provider": "Qwen", "model": "qwen3.6-plus", "input_price": 2.35, "output_price": 13.90, "context_window": 1000000, "model_type": "text"},
+    {"provider": "Qwen", "model": "qwen3.6-flash", "input_price": 1.35, "output_price": 8.06, "context_window": 1000000, "model_type": "text"},
 ]
 
 PLATFORMS = ("official", "openrouter", "yunwu", "moyu")

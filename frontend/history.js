@@ -101,7 +101,7 @@
             const prefix = multiPlatform ? (PLATFORM_LABELS[plat] || plat) + " " : "";
 
             datasets.push({
-                label: prefix + "Input $/1M",
+                label: prefix + "Input ¥/1M",
                 data: inputData,
                 borderColor: colors.input,
                 backgroundColor: colors.input + "33",
@@ -111,7 +111,7 @@
                 borderDash: multiPlatform && plat !== platforms[0] ? [6, 3] : [],
             });
             datasets.push({
-                label: prefix + "Output $/1M",
+                label: prefix + "Output ¥/1M",
                 data: outputData,
                 borderColor: colors.output,
                 backgroundColor: colors.output + "33",
@@ -135,7 +135,7 @@
                 scales: {
                     y: {
                         ticks: {
-                            callback: value => `$${Number(value).toFixed(2)}`
+                            callback: value => `¥${Number(value).toFixed(2)}`
                         }
                     }
                 }

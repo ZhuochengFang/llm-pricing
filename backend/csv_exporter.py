@@ -15,7 +15,7 @@ from pricing_data import get_prices
 
 logger = logging.getLogger(__name__)
 
-CSV_HEADERS = ["Platform", "Provider", "Model", "Input $/1M tokens", "Output $/1M tokens", "Context Window"]
+CSV_HEADERS = ["Platform", "Provider", "Model", "Input ¥/1M tokens", "Output ¥/1M tokens", "Context Window"]
 
 
 def export_daily_csv(data_dir: str) -> str | None:
