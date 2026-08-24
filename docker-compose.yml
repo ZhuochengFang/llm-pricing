@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: docker.io/library/postgres:16-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: llmpricing
@@ -22,6 +22,7 @@ services:
       DATABASE_URL: "postgresql://llmpricing:llmpricing@db:5432/llmpricing"
       YUNWU_PROXY: "http://host.docker.internal:7890"
       LITELLM_PROXY: "http://host.docker.internal:7890"
+      LLM_PRICING_API_KEY: WHSDKIBAWTYGE37KB8TDZO0I
       #HTTPS_PROXY: "http://host.docker.internal:7890"
       #HTTP_PROXY: "http://host.docker.internal:7890"
       #NO_PROXY: "localhost,127.0.0.1,db"

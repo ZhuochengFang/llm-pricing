@@ -194,7 +194,7 @@ def update_litellm_prices(new_data: list[dict]) -> None:
 
 
 def get_prices(provider: Optional[str] = None, platform: Optional[str] = None,
-               model_type: Optional[str] = None) -> list[dict]:
+               model_type: Optional[str] = None, model: Optional[str] = None) -> list[dict]:
     """合并所有平台数据，按排序规则排列，附加 slug 和元数据后返回。"""
     or_data = _live_data if _live_data else PRICING_DATA
     or_entries = [{"platform": "openrouter", **e} for e in or_data]
@@ -208,6 +208,9 @@ def get_prices(provider: Optional[str] = None, platform: Optional[str] = None,
         all_data = [m for m in all_data if m["platform"].lower() == platform.lower()]
     if model_type:
         all_data = [m for m in all_data if m.get("model_type", "text").lower() == model_type.lower()]
+    if model:
+        model_lower = model.lower()
+        all_data = [m for m in all_data if model_lower in m["model"].lower()]
 
     all_data.sort(key=_sort_key)
 

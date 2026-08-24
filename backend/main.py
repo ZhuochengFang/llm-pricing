@@ -16,7 +16,7 @@ import traceback
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Header, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.responses import StreamingResponse
@@ -249,9 +249,9 @@ app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 
 @app.get("/api/prices")
 def prices(provider: Optional[str] = Query(None), platform: Optional[str] = Query(None),
-           model_type: Optional[str] = Query(None)):
-    """获取当前所有模型定价，支持按供应商、平台和模型类型筛选。"""
-    return get_prices(provider, platform, model_type)
+           model_type: Optional[str] = Query(None), model: Optional[str] = Query(None)):
+    """获取当前所有模型定价，支持按供应商、平台、模型类型和模型名筛选。"""
+    return get_prices(provider, platform, model_type, model)
 
 
 @app.get("/api/status")
@@ -269,9 +269,9 @@ async def manual_refresh():
 
 @app.get("/api/export")
 def export_excel(provider: Optional[str] = Query(None), platform: Optional[str] = Query(None),
-                 model_type: Optional[str] = Query(None)):
+                 model_type: Optional[str] = Query(None), model: Optional[str] = Query(None)):
     """导出当前定价数据为 Excel (.xlsx) 文件并返回下载流。"""
-    rows = get_prices(provider, platform, model_type)
+    rows = get_prices(provider, platform, model_type, model)
     wb = Workbook()
     ws = wb.active
     ws.title = "LLM Pricing"
@@ -307,6 +307,37 @@ async def history_by_slug(slug: str):
     if not result:
         return JSONResponse(status_code=404, content={"detail": "Unknown model slug"})
     return result
+
+
+# ————— 外部 API（需要 API Key 认证） —————
+
+_API_KEY = os.environ.get("LLM_PRICING_API_KEY", "")
+
+
+async def _verify_api_key(x_api_key: str = Header(None)):
+    if not _API_KEY:
+        raise HTTPException(status_code=503, detail="External API not configured (no API key set)")
+    if x_api_key != _API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
+@app.get("/api/external/prices", dependencies=[Depends(_verify_api_key)])
+def external_prices(provider: Optional[str] = Query(None), platform: Optional[str] = Query(None),
+                    model_type: Optional[str] = Query(None), model: Optional[str] = Query(None)):
+    """外部接口：获取当前所有模型定价（需 X-API-Key 请求头）。"""
+    data = get_prices(provider, platform, model_type, model)
+    status = get_status()
+    return {
+        "status": status,
+        "count": len(data),
+        "prices": data,
+    }
+
+
+@app.get("/api/external/status", dependencies=[Depends(_verify_api_key)])
+def external_status():
+    """外部接口：获取数据源状态（需 X-API-Key 请求头）。"""
+    return get_status()
 
 
 # ————— 前端页面路由 —————
